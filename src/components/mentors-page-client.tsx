@@ -36,7 +36,7 @@ import {
 import { MentorsTable } from "@/components/mentors-table"
 import { fetchAwards, createAward } from "@/lib/services/awards-api"
 import { fetchBenefits, createBenefit } from "@/lib/services/benefits-api"
-import { fetchCountries, createCountry } from "@/lib/services/countries-api"
+import { createCountry, fetchCountries, mergeCountryIntoCatalog } from "@/lib/services/countries-api"
 import {
   createMentor,
   deleteMentor,
@@ -202,7 +202,7 @@ export function MentorsPageClient() {
       },
       onCreateCountry: async (name: string) => {
         const created = await createCountry(name)
-        setCountries((prev) => [...prev.filter((item) => item.id !== created.id), created])
+        setCountries((prev) => mergeCountryIntoCatalog(prev, created))
         return created
       },
     }),

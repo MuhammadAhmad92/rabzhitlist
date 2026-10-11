@@ -168,7 +168,18 @@ function CatalogNavItem({ pathname }: { pathname: string }) {
   const tszMergeActive =
     pathname === "/catalog/merge-time-support-zones" ||
     pathname.startsWith("/catalog/merge-time-support-zones/")
-  const catalogActive = techMergeActive || tszMergeActive
+  const degreeMergeActive =
+    pathname === "/catalog/merge-degrees" || pathname.startsWith("/catalog/merge-degrees/")
+  const majorMergeActive =
+    pathname === "/catalog/merge-majors" || pathname.startsWith("/catalog/merge-majors/")
+  const countryMergeActive =
+    pathname === "/catalog/merge-countries" || pathname.startsWith("/catalog/merge-countries/")
+  const catalogActive =
+    techMergeActive ||
+    tszMergeActive ||
+    degreeMergeActive ||
+    majorMergeActive ||
+    countryMergeActive
 
   return (
     <SidebarMenuItem>
@@ -192,6 +203,21 @@ function CatalogNavItem({ pathname }: { pathname: string }) {
         <SidebarMenuSubItem>
           <SidebarMenuSubButton asChild isActive={tszMergeActive}>
             <Link href="/catalog/merge-time-support-zones">Merge time support zones</Link>
+          </SidebarMenuSubButton>
+        </SidebarMenuSubItem>
+        <SidebarMenuSubItem>
+          <SidebarMenuSubButton asChild isActive={degreeMergeActive}>
+            <Link href="/catalog/merge-degrees">Merge degrees</Link>
+          </SidebarMenuSubButton>
+        </SidebarMenuSubItem>
+        <SidebarMenuSubItem>
+          <SidebarMenuSubButton asChild isActive={majorMergeActive}>
+            <Link href="/catalog/merge-majors">Merge majors</Link>
+          </SidebarMenuSubButton>
+        </SidebarMenuSubItem>
+        <SidebarMenuSubItem>
+          <SidebarMenuSubButton asChild isActive={countryMergeActive}>
+            <Link href="/catalog/merge-countries">Merge countries</Link>
           </SidebarMenuSubButton>
         </SidebarMenuSubItem>
       </SidebarMenuSub>

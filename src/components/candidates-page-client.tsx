@@ -42,7 +42,7 @@ import {
   ensureDomainCatalogsLoaded,
   type LookupItem,
 } from "@/lib/services/lookups-api"
-import { fetchCountries, createCountry } from "@/lib/services/countries-api"
+import { createCountry, fetchCountries, mergeCountryIntoCatalog } from "@/lib/services/countries-api"
 import {
   fetchTimeSupportZones,
   createTimeSupportZone,
@@ -51,6 +51,8 @@ import { mergeTimeSupportZoneIntoCatalog } from "@/lib/utils/time-support-zone-l
 import { fetchAwards, createAward } from "@/lib/services/awards-api"
 import { fetchBenefits, createBenefit } from "@/lib/services/benefits-api"
 import { fetchDegrees, createDegree, fetchMajors, createMajor } from "@/lib/services/majors-degrees-api"
+import { mergeDegreeIntoCatalog } from "@/lib/utils/degree-lookup"
+import { mergeMajorIntoCatalog } from "@/lib/utils/major-lookup"
 import {
   fetchCandidatesPage,
   createCandidate,
@@ -275,7 +277,7 @@ export function CandidatesPageClient() {
   const [lookupsLoading, setLookupsLoading] = useState(true)
 
   const countriesLookup = useMemo(
-    () => countries.map((c) => ({ id: c.id, name: c.name })),
+    () => countries.map((c) => ({ id: c.id, name: c.name, usageCount: c.usageCount })),
     [countries],
   )
 
@@ -812,12 +814,7 @@ export function CandidatesPageClient() {
   const handleCreateCountry = useCallback(async (name: string): Promise<Country | null> => {
     try {
       const newCountry = await createCountry(name)
-      setCountries((prev) => [
-        ...prev.filter(
-          (c) => c.id !== newCountry.id && c.name.toLowerCase() !== newCountry.name.toLowerCase(),
-        ),
-        newCountry,
-      ])
+      setCountries((prev) => mergeCountryIntoCatalog(prev, newCountry))
       return newCountry
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to add country.")
@@ -868,7 +865,7 @@ export function CandidatesPageClient() {
   const handleCreateDegree = useCallback(async (name: string) => {
     try {
       const created = await createDegree(name)
-      setDegreesLookup((prev) => [...prev.filter((l) => l.id !== created.id && l.name !== created.name), created])
+      setDegreesLookup((prev) => mergeDegreeIntoCatalog(prev, created))
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to add degree")
       throw e
@@ -878,7 +875,7 @@ export function CandidatesPageClient() {
   const handleCreateMajor = useCallback(async (name: string) => {
     try {
       const created = await createMajor(name)
-      setMajorsLookup((prev) => [...prev.filter((l) => l.id !== created.id && l.name !== created.name), created])
+      setMajorsLookup((prev) => mergeMajorIntoCatalog(prev, created))
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to add major")
       throw e

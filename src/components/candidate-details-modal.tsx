@@ -64,7 +64,7 @@ import {
   type EmployerComboboxNestedCreationProps,
 } from "@/components/employer-combobox"
 import type { Country } from "@/lib/types/country"
-import { fetchCountries, createCountry } from "@/lib/services/countries-api"
+import { createCountry, fetchCountries, mergeCountryIntoCatalog } from "@/lib/services/countries-api"
 import type { BuildCreateEmployerDtoOptions } from "@/lib/services/employers-api"
 import { fetchEmployerById } from "@/lib/services/employers-api"
 import { EntityAuditFields } from "@/components/entity-audit-fields"
@@ -151,6 +151,8 @@ import { fetchTechStacks, type LookupItem } from "@/lib/services/lookups-api"
 import { useScrollSpySection } from "@/hooks/use-scroll-spy-section"
 import { buildTechStackMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
 import { buildTimeSupportZoneMultiSelectOptions } from "@/lib/utils/time-support-zone-lookup"
+import { buildDegreeComboboxOptions } from "@/lib/utils/degree-lookup"
+import { buildMajorComboboxOptions } from "@/lib/utils/major-lookup"
 import { fetchTimeSupportZones } from "@/lib/services/tags-timesupportzones-api"
 import { fetchAwards } from "@/lib/services/awards-api"
 import { fetchBenefits } from "@/lib/services/benefits-api"
@@ -380,28 +382,6 @@ const extractUniqueMajorNames = (): ComboboxOption[] => {
   }))
 }
 
-function mergeNamedComboboxOptions(
-  catalog: { name: string }[],
-  fallbackOptions: ComboboxOption[],
-  selectedNames: Iterable<string>
-): ComboboxOption[] {
-  const byKey = new Map<string, ComboboxOption>()
-  for (const item of catalog) {
-    const n = item.name?.trim()
-    if (!n) continue
-    byKey.set(n.toLowerCase(), { value: n, label: n })
-  }
-  for (const option of fallbackOptions) {
-    byKey.set(option.value.toLowerCase(), option)
-  }
-  for (const raw of selectedNames) {
-    const n = raw?.trim()
-    if (!n) continue
-    const key = n.toLowerCase()
-    if (!byKey.has(key)) byKey.set(key, { value: n, label: n })
-  }
-  return Array.from(byKey.values()).sort((a, b) => a.label.localeCompare(b.label))
-}
 // Base options (extracted from sample data)
 const baseDegreeOptions: ComboboxOption[] = extractUniqueDegreeNames()
 const baseMajorOptions: ComboboxOption[] = extractUniqueMajorNames()
@@ -4397,34 +4377,36 @@ export function CandidateDetailsModal({
   }, [authUser?.id, authUser?.role, candidate, fullCandidate])
 
   const degreeCatalogOptions = useMemo(
-    () => mergeNamedComboboxOptions(degreeMajorLookups.degrees, [], []),
-    [degreeMajorLookups.degrees]
+    () => buildDegreeComboboxOptions(degreeMajorLookups.degrees),
+    [degreeMajorLookups.degrees],
   )
 
   const majorCatalogOptions = useMemo(
-    () => mergeNamedComboboxOptions(degreeMajorLookups.majors, [], []),
-    [degreeMajorLookups.majors]
+    () => buildMajorComboboxOptions(degreeMajorLookups.majors),
+    [degreeMajorLookups.majors],
   )
 
-  const degreeOptions = useMemo(
-    () =>
-      mergeNamedComboboxOptions(
-        degreeMajorLookups.degrees,
-        baseDegreeOptions,
-        (resolvedCandidate?.educations ?? []).map((e) => e.degreeName)
-      ),
-    [degreeMajorLookups.degrees, resolvedCandidate?.educations]
-  )
+  const degreeOptions = useMemo(() => {
+    const extraNames = new Set<string>()
+    for (const option of baseDegreeOptions) {
+      if (option.value?.trim()) extraNames.add(option.value.trim())
+    }
+    for (const edu of resolvedCandidate?.educations ?? []) {
+      if (edu.degreeName?.trim()) extraNames.add(edu.degreeName.trim())
+    }
+    return buildDegreeComboboxOptions(degreeMajorLookups.degrees, extraNames)
+  }, [degreeMajorLookups.degrees, resolvedCandidate?.educations])
 
-  const majorOptions = useMemo(
-    () =>
-      mergeNamedComboboxOptions(
-        degreeMajorLookups.majors,
-        baseMajorOptions,
-        (resolvedCandidate?.educations ?? []).map((e) => e.majorName)
-      ),
-    [degreeMajorLookups.majors, resolvedCandidate?.educations]
-  )
+  const majorOptions = useMemo(() => {
+    const extraNames = new Set<string>()
+    for (const option of baseMajorOptions) {
+      if (option.value?.trim()) extraNames.add(option.value.trim())
+    }
+    for (const edu of resolvedCandidate?.educations ?? []) {
+      if (edu.majorName?.trim()) extraNames.add(edu.majorName.trim())
+    }
+    return buildMajorComboboxOptions(degreeMajorLookups.majors, extraNames)
+  }, [degreeMajorLookups.majors, resolvedCandidate?.educations])
 
   const techStackOptions = useMemo(() => {
     const selectedNames = collectCandidateTechStackNames(resolvedCandidate)
@@ -4458,12 +4440,7 @@ export function CandidateDetailsModal({
   const handleCreateCountry = React.useCallback(async (name: string): Promise<Country | null> => {
     try {
       const newCountry = await createCountry(name)
-      setCountries((prev) => [
-        ...prev.filter(
-          (c) => c.id !== newCountry.id && c.name.toLowerCase() !== newCountry.name.toLowerCase(),
-        ),
-        newCountry,
-      ])
+      setCountries((prev) => mergeCountryIntoCatalog(prev, newCountry))
       return newCountry
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to add country.")

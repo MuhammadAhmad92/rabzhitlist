@@ -15,7 +15,7 @@ import { deleteCreatedByUserIdParam } from "@/lib/utils/created-by-user-id"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
 import type { University } from "@/lib/types/university"
 import type { Country } from "@/lib/types/country"
-import { fetchCountries, createCountry } from "@/lib/services/countries-api"
+import { createCountry, fetchCountries, mergeCountryIntoCatalog } from "@/lib/services/countries-api"
 import {
   fetchUniversitiesFiltered,
   fetchUniversityById,
@@ -224,7 +224,7 @@ export function UniversitiesPageClient() {
   const handleCreateCountry = useCallback(async (name: string): Promise<Country | null> => {
     try {
       const newCountry = await createCountry(name)
-      setCountries((prev) => [...prev.filter((c) => c.id !== newCountry.id && c.name.toLowerCase() !== newCountry.name.toLowerCase()), newCountry])
+      setCountries((prev) => mergeCountryIntoCatalog(prev, newCountry))
       return newCountry
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to add country.")

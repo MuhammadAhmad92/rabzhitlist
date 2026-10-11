@@ -1,6 +1,6 @@
 # Backend contract: Time support zone catalog merge
 
-**Status:** Pending backend implementation.
+**Status:** Backend **Implemented** (preview + merge routes, PK-safe junction rewrite, Z1 usage recompute, T10 preview parity).
 
 **Roles:** Super Admin `0`, Admin `1`. Recruiter `2` → **403** on merge routes. UI hides Catalog nav for Recruiter.
 
@@ -209,19 +209,49 @@ usageCount(Z) = distinct_employers(Z) + distinct_work_experiences(Z)
 | Types | `src/lib/types/time-support-zone-merge.ts` |
 | Nav | **Catalog** → **Merge time support zones** (Admin + Super Admin) |
 
-**Backend status:** Wire when **`POST /api/timesupportzones/merge/preview`** and **`POST /api/timesupportzones/merge`** return **200** per this document.
+| Layer | Status |
+|-------|--------|
+| **Frontend** | **Implemented** — merge page, API client, Catalog nav |
+| **Backend** | **Implemented** — preview (transaction + rollback, T10), merge, PK-safe junction rewrite, hard-delete sources, Z1 recompute on survivor. No migration. |
 
 ---
 
-## 10. Backend agent handoff (copy-paste)
+## 10. Backend agent handoff (completed)
 
-Implement **`POST /api/timesupportzones/merge/preview`** and **`POST /api/timesupportzones/merge`** per this document.
+Shipped behavior (for regression):
 
-- Admin + Super Admin only; Recruiter **403**.
-- PK-safe rewrite + dedupe on `employer_time_support_zones` and `candidate_work_experience_time_support_zones`.
-- Hard-delete source catalog rows.
-- Recompute survivor **`usageCount`** (Z1).
-- Preview and merge **`impact`** must match for the same request (T10).
-- Missing catalog id → **404**.
+- **400:** empty/duplicate sources, target in sources, bad `mode`, missing fields, blank `name`
+- **404:** missing source or existing target id
+- **T6:** PK-safe rewrite on `employer_time_support_zones` and `candidate_work_experience_time_support_zones` (delete + insert; dedupe when parent already has target)
+- **T5:** hard-delete source catalog rows after junction rewrite
+- **T8 / Z1:** `RebuildForZoneAsync` on survivor in the same DB transaction
+- **T10:** preview runs the full merge in a transaction and **rolls back**; `impact` and `usageCountAfter` match merge for the same body
+- **`mode: "new"`:** trim name, reuse existing row by name (citext), else create with `usageCount = 0`
+
+Backend touchpoints (reference): `TimeSupportZoneMergeRepository`, `TimeSupportZoneMergeService`, DTOs, `TimeSupportZonesController` merge routes, DI in `Program.cs`.
+
+---
+
+## 11. Post-deploy smoke test (Admin)
+
+**Status:** **QA verified** (Admin UI + API, post-backend deploy).
+
+1. **Catalog → Merge time support zones** — pick ≥1 source, existing or new target.
+2. **Preview** — note `usageCountAfter`, `impact`, source `usageCountBefore`.
+3. **Confirm merge** — `mergedSourceIds` match sources; `target.usageCount` equals preview `usageCountAfter`; `impact` matches preview.
+4. **GET `/api/timesupportzones`** — sources gone; survivor name/count/sort correct.
+5. Open an **employer** and **candidate work experience** that had source zones — dropdowns show survivor only.
+6. Optional: preview+merge where a parent already had **both** target and source — check `duplicateLinksRemoved` counts.
+
+If preview and merge disagree on counts or impact, capture both request/response JSON for T10 tracing.
+
+### QA record (verified)
+
+| Scenario | Source → target | T10 | Notes |
+|----------|-----------------|-----|--------|
+| Unused source | KSA (8) → USA (14) | `usageCountAfter` **4** = merge `usageCount` **4**; `impact` all zeros | Source `usageCountBefore: 0`; PAK absent from GET after later merge |
+| Linked source | PAK (6) → USA (14) | **6** = **6**; `impact` identical on preview and merge | `distinctEmployersAffected: 1`, `distinctWorkExperiencesAffected: 1`, `workExperienceTimeSupportZones` duplicate removed: **1**; survivor tops GET sort |
+
+**v2 (optional API polish):** Omit null `usageCount` on preview `target` and null `usageCountAfter` on merge `target` (FE tolerates both today).
 
 Cross-read: `TIME_SUPPORT_ZONES_USAGE_COUNT_BACKEND_CONTRACT.md`.

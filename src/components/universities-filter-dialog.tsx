@@ -18,6 +18,7 @@ import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { Filter, Loader2 } from "lucide-react"
 import { UniversityRanking, UNIVERSITY_RANKING_LABELS } from "@/lib/types/university"
 import type { Country } from "@/lib/types/country"
+import { countryLookupItemsToMultiSelectOptions } from "@/lib/utils/country-lookup"
 
 // Filter interfaces
 export interface UniversityFilters {
@@ -66,8 +67,8 @@ export function UniversitiesFilterDialog({
   const [tempFilters, setTempFilters] = useState<UniversityFilters>(filters)
 
   const countryOptions: MultiSelectOption[] = useMemo(
-    () => countries.map((c) => ({ value: c.name, label: c.name })),
-    [countries]
+    () => countryLookupItemsToMultiSelectOptions(countries),
+    [countries],
   )
 
   // Calculate active filter count

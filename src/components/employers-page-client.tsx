@@ -22,7 +22,8 @@ import {
 import type { Country } from "@/lib/types/country"
 import { fetchClientLocations, ensureDomainCatalogsLoaded, type LookupItem } from "@/lib/services/lookups-api"
 import type { PublishPlatform, ProjectStatus } from "@/lib/types/project"
-import { fetchCountries, createCountry } from "@/lib/services/countries-api"
+import { createCountry, fetchCountries, mergeCountryIntoCatalog } from "@/lib/services/countries-api"
+import { countryLookupItemsToMultiSelectOptions } from "@/lib/utils/country-lookup"
 import {
   fetchTimeSupportZones,
   createTimeSupportZone,
@@ -374,8 +375,8 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
   )
 
   const countryFilterOptions = useMemo(
-    () => countries.map((c) => ({ value: c.name, label: c.name })),
-    [countries]
+    () => countryLookupItemsToMultiSelectOptions(countries),
+    [countries],
   )
 
   useEffect(() => {
@@ -457,7 +458,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
   const handleCreateCountry = useCallback(async (name: string): Promise<Country | null> => {
     try {
       const newCountry = await createCountry(name)
-      setCountries((prev) => [...prev.filter((c) => c.id !== newCountry.id && c.name.toLowerCase() !== newCountry.name.toLowerCase()), newCountry])
+      setCountries((prev) => mergeCountryIntoCatalog(prev, newCountry))
       return newCountry
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to add country.")

@@ -167,6 +167,8 @@ import { formatResumeFileSize } from "@/lib/utils/candidate-resume"
 import { format } from "date-fns"
 import { buildTechStackMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
 import { buildTimeSupportZoneMultiSelectOptions } from "@/lib/utils/time-support-zone-lookup"
+import { buildDegreeComboboxOptions } from "@/lib/utils/degree-lookup"
+import { buildMajorComboboxOptions } from "@/lib/utils/major-lookup"
 
 /** Lookups from backend for candidate form dropdowns (aligned with employer/project dialogs). */
 export interface CandidateLookups {
@@ -1430,27 +1432,33 @@ export function CandidateCreationDialog({
     [lookups?.timeSupportZones, selectedTimeSupportZoneNames],
   )
 
-  const degreeOptions: ComboboxOption[] = useMemo(() => {
-    const byValue = new Map<string, ComboboxOption>()
-    for (const l of lookups?.degrees ?? []) {
-      if (l?.name?.trim()) {
-        const n = l.name.trim()
-        byValue.set(n, { value: n, label: n })
-      }
-    }
-    return Array.from(byValue.values()).sort((a, b) => a.label.localeCompare(b.label))
-  }, [lookups?.degrees])
+  const selectedDegreeNames = useMemo(() => {
+    const names = new Set<string>()
+    formData.educations.forEach((edu) => {
+      const n = edu.degreeName?.trim()
+      if (n) names.add(n)
+    })
+    return names
+  }, [formData.educations])
 
-  const majorOptions: ComboboxOption[] = useMemo(() => {
-    const byValue = new Map<string, ComboboxOption>()
-    for (const l of lookups?.majors ?? []) {
-      if (l?.name?.trim()) {
-        const n = l.name.trim()
-        byValue.set(n, { value: n, label: n })
-      }
-    }
-    return Array.from(byValue.values()).sort((a, b) => a.label.localeCompare(b.label))
-  }, [lookups?.majors])
+  const selectedMajorNames = useMemo(() => {
+    const names = new Set<string>()
+    formData.educations.forEach((edu) => {
+      const n = edu.majorName?.trim()
+      if (n) names.add(n)
+    })
+    return names
+  }, [formData.educations])
+
+  const degreeOptions: ComboboxOption[] = useMemo(
+    () => buildDegreeComboboxOptions(lookups?.degrees ?? [], selectedDegreeNames),
+    [lookups?.degrees, selectedDegreeNames],
+  )
+
+  const majorOptions: ComboboxOption[] = useMemo(
+    () => buildMajorComboboxOptions(lookups?.majors ?? [], selectedMajorNames),
+    [lookups?.majors, selectedMajorNames],
+  )
 
   const isDegreeInCatalog = useCallback(
     (name: string) => {
