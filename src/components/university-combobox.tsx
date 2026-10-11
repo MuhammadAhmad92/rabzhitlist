@@ -24,7 +24,7 @@ import {
   createUniversity,
   createUniversityLocation,
 } from "@/lib/services/universities-api"
-import { fetchCountries, createCountry } from "@/lib/services/countries-api"
+import { createCountry, fetchCountries, mergeCountryIntoCatalog } from "@/lib/services/countries-api"
 import { LABEL_TO_RANKING } from "@/lib/types/university"
 import type { Country } from "@/lib/types/country"
 
@@ -84,12 +84,7 @@ export function UniversityCombobox({
   const handleCreateCountry = useCallback(async (name: string): Promise<Country | null> => {
     try {
       const newCountry = await createCountry(name)
-      setCountries((prev) => [
-        ...prev.filter(
-          (c) => c.id !== newCountry.id && c.name.toLowerCase() !== newCountry.name.toLowerCase()
-        ),
-        newCountry,
-      ])
+      setCountries((prev) => mergeCountryIntoCatalog(prev, newCountry))
       return newCountry
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to add country.")

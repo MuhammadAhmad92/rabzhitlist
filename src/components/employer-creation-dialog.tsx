@@ -39,6 +39,7 @@ import {
 import { Loader2, Plus, Building2, MapPin, Trash2, ShieldCheck, ChevronDown, ChevronRight, AlertTriangle, CalendarIcon, ChevronsUpDown, Check } from "lucide-react"
 import { Employer, Layoff, type EmployerTypeDb, EMPLOYER_TYPE_DB_LABELS, EMPLOYER_TYPE_DISPLAY_TO_DB, type RankingDb, RANKING_DB_LABELS, RANKING_DISPLAY_TO_DB, type EmployerRanking, type WorkModeDb, WORK_MODE_DB_LABELS, type ShiftTypeDb, SHIFT_TYPE_DB_LABELS, type EmployerStatusDb, EMPLOYER_STATUS_DB_LABELS, EMPLOYER_STATUS_DISPLAY_TO_DB, type LayoffReasonDb, LAYOFF_REASON_DB_LABELS, LAYOFF_REASON_DISPLAY_TO_DB, type SalaryPolicyDb, SALARY_POLICY_DB_LABELS, SALARY_POLICY_DISPLAY_TO_DB, normalizeSalaryPolicy } from "@/lib/types/employer"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
+import { buildTimeSupportZoneMultiSelectOptions } from "@/lib/utils/time-support-zone-lookup"
 import { EmployerBenefit, normalizeEmployerBenefit } from "@/lib/types/benefits"
 import { BenefitsSelector } from "@/components/ui/benefits-selector"
 import type { LookupItem } from "@/lib/services/lookups-api"
@@ -335,8 +336,12 @@ export function EmployerCreationDialog({
   }, [countries, locationCountrySearchQuery])
 
   const timeSupportZoneOptions: MultiSelectOption[] = useMemo(
-    () => lookups?.timeSupportZones?.map((l) => ({ value: l.name, label: l.name })) ?? [],
-    [lookups?.timeSupportZones]
+    () =>
+      buildTimeSupportZoneMultiSelectOptions(
+        lookups?.timeSupportZones ?? [],
+        formData.timeSupportZones,
+      ),
+    [lookups?.timeSupportZones, formData.timeSupportZones],
   )
   const awardOptions: MultiSelectOption[] = useMemo(
     () => lookups?.awards?.map((l) => ({ value: l.name, label: l.name })) ?? [],

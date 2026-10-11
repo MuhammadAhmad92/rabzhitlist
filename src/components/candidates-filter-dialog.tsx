@@ -28,6 +28,10 @@ import {
 import { Filter, CalendarIcon, X, ChevronsUpDown, Check, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { buildTechStackMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
+import { timeSupportZoneLookupItemsToMultiSelectOptions } from "@/lib/utils/time-support-zone-lookup"
+import { degreeLookupItemsToMultiSelectOptions } from "@/lib/utils/degree-lookup"
+import { majorLookupItemsToMultiSelectOptions } from "@/lib/utils/major-lookup"
+import { countryLookupItemsToMultiSelectOptions } from "@/lib/utils/country-lookup"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
@@ -658,8 +662,8 @@ export function CandidatesFilterDialog({
   ])
 
   const timeSupportZoneFilterOptions = useMemo<MultiSelectOption[]>(
-    () => timeSupportZones.map((z) => ({ value: z.name, label: z.name })),
-    [timeSupportZones]
+    () => timeSupportZoneLookupItemsToMultiSelectOptions(timeSupportZones),
+    [timeSupportZones],
   )
 
   /** Same pattern as ProjectsFilterDialog: API lookup names, fallback to sample project strings. */
@@ -673,15 +677,11 @@ export function CandidatesFilterDialog({
     }))
   }, [clientLocations])
 
-  /** Same country catalog as EmployersFilterDialog (`GET /api/countries`). */
-  const employerCountryFilterOptions = useMemo<MultiSelectOption[]>(() => {
-    if (countries.length > 0) {
-      return [...countries]
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((c) => ({ value: c.name, label: c.name }))
-    }
-    return []
-  }, [countries])
+  /** Same country catalog as EmployersFilterDialog (`GET /api/countries`, CN4 sort). */
+  const employerCountryFilterOptions = useMemo<MultiSelectOption[]>(
+    () => countryLookupItemsToMultiSelectOptions(countries),
+    [countries],
+  )
 
   /** Issuing body names from GET /api/CertificationIssuers; filter values match `certificationIssuerName` on candidates. */
   const certificationIssuingBodyFilterOptions = useMemo<MultiSelectOption[]>(() => {
@@ -691,19 +691,15 @@ export function CandidatesFilterDialog({
   }, [certificationIssuers])
 
   /** Same degree/major name lists as CandidateCreationDialog (`lookups.degrees` / `lookups.majors`). */
-  const degreeNameFilterOptions = useMemo<MultiSelectOption[]>(() => {
-    return [...degrees]
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((d) => ({ value: d.name, label: d.name }))
-  }, [degrees])
+  const degreeNameFilterOptions = useMemo<MultiSelectOption[]>(
+    () => degreeLookupItemsToMultiSelectOptions(degrees),
+    [degrees],
+  )
 
-  const majorNameFilterOptions = useMemo<MultiSelectOption[]>(() => {
-    return [...majors]
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((m) => ({ value: m.name, label: m.name }))
-  }, [majors])
+  const majorNameFilterOptions = useMemo<MultiSelectOption[]>(
+    () => majorLookupItemsToMultiSelectOptions(majors),
+    [majors],
+  )
 
   /** Project Expertise technology stack filter — API catalog, fallback to sample projects. */
   const projectTechStackFilterOptions = useMemo<MultiSelectOption[]>(() => {

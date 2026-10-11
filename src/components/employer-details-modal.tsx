@@ -55,6 +55,7 @@ import { EntityAuditFields } from "@/components/entity-audit-fields"
 import type { EmployerLookups } from "@/components/employer-creation-dialog"
 import { employerToFormData, type EmployerFormData } from "@/components/employer-creation-dialog"
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select"
+import { buildTimeSupportZoneMultiSelectOptions } from "@/lib/utils/time-support-zone-lookup"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -1643,8 +1644,12 @@ export function EmployerDetailsModal({
   } | null>(null)
 
   const timeSupportZoneOptions: MultiSelectOption[] = useMemo(
-    () => lookups?.timeSupportZones?.map((z) => ({ value: z.name, label: z.name })) ?? [],
-    [lookups?.timeSupportZones]
+    () =>
+      buildTimeSupportZoneMultiSelectOptions(
+        lookups?.timeSupportZones ?? [],
+        localEmployer.timeSupportZones ?? [],
+      ),
+    [lookups?.timeSupportZones, localEmployer.timeSupportZones],
   )
   const awardOptions: MultiSelectOption[] = useMemo(
     () => lookups?.awards?.map((a) => ({ value: a.name, label: a.name })) ?? [],

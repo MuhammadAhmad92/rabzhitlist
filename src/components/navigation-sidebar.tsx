@@ -162,14 +162,30 @@ function isNavItemActive(pathname: string, url: string): boolean {
 }
 
 function CatalogNavItem({ pathname }: { pathname: string }) {
-  const mergeActive =
-    pathname === "/catalog/merge-technologies" || pathname.startsWith("/catalog/merge-technologies/")
+  const techMergeActive =
+    pathname === "/catalog/merge-technologies" ||
+    pathname.startsWith("/catalog/merge-technologies/")
+  const tszMergeActive =
+    pathname === "/catalog/merge-time-support-zones" ||
+    pathname.startsWith("/catalog/merge-time-support-zones/")
+  const degreeMergeActive =
+    pathname === "/catalog/merge-degrees" || pathname.startsWith("/catalog/merge-degrees/")
+  const majorMergeActive =
+    pathname === "/catalog/merge-majors" || pathname.startsWith("/catalog/merge-majors/")
+  const countryMergeActive =
+    pathname === "/catalog/merge-countries" || pathname.startsWith("/catalog/merge-countries/")
+  const catalogActive =
+    techMergeActive ||
+    tszMergeActive ||
+    degreeMergeActive ||
+    majorMergeActive ||
+    countryMergeActive
 
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         asChild
-        isActive={mergeActive}
+        isActive={catalogActive}
         tooltip="Catalog maintenance and merge tools"
         className="transition-all duration-200 ease-in-out hover:scale-[1.02]"
       >
@@ -180,8 +196,28 @@ function CatalogNavItem({ pathname }: { pathname: string }) {
       </SidebarMenuButton>
       <SidebarMenuSub>
         <SidebarMenuSubItem>
-          <SidebarMenuSubButton asChild isActive={mergeActive}>
+          <SidebarMenuSubButton asChild isActive={techMergeActive}>
             <Link href="/catalog/merge-technologies">Merge technologies</Link>
+          </SidebarMenuSubButton>
+        </SidebarMenuSubItem>
+        <SidebarMenuSubItem>
+          <SidebarMenuSubButton asChild isActive={tszMergeActive}>
+            <Link href="/catalog/merge-time-support-zones">Merge time support zones</Link>
+          </SidebarMenuSubButton>
+        </SidebarMenuSubItem>
+        <SidebarMenuSubItem>
+          <SidebarMenuSubButton asChild isActive={degreeMergeActive}>
+            <Link href="/catalog/merge-degrees">Merge degrees</Link>
+          </SidebarMenuSubButton>
+        </SidebarMenuSubItem>
+        <SidebarMenuSubItem>
+          <SidebarMenuSubButton asChild isActive={majorMergeActive}>
+            <Link href="/catalog/merge-majors">Merge majors</Link>
+          </SidebarMenuSubButton>
+        </SidebarMenuSubItem>
+        <SidebarMenuSubItem>
+          <SidebarMenuSubButton asChild isActive={countryMergeActive}>
+            <Link href="/catalog/merge-countries">Merge countries</Link>
           </SidebarMenuSubButton>
         </SidebarMenuSubItem>
       </SidebarMenuSub>

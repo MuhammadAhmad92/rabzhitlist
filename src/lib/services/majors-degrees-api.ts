@@ -1,43 +1,66 @@
 /**
  * Majors and Degrees APIs for candidate education comboboxes.
- * @see Majors-and-degrees-API-Reference.md
+ * @see docs/DEGREES_USAGE_COUNT_BACKEND_CONTRACT.md
+ * @see docs/MAJORS_USAGE_COUNT_BACKEND_CONTRACT.md
  */
 
 import { apiGet, apiPost } from "@/lib/api-client"
+import {
+  normalizeDegreeLookupItem,
+  normalizeDegreeLookupList,
+  sortDegreeLookupItems,
+  type DegreeLookupItem,
+} from "@/lib/utils/degree-lookup"
+import {
+  normalizeMajorLookupItem,
+  normalizeMajorLookupList,
+  sortMajorLookupItems,
+  type MajorLookupItem,
+} from "@/lib/utils/major-lookup"
 
-export interface MajorDto {
-  id: number
-  name: string
+export type { DegreeLookupItem, MajorLookupItem }
+export type MajorDto = MajorLookupItem
+export type DegreeDto = DegreeLookupItem
+
+const DEGREES_PATH = "/api/degrees"
+const MAJORS_PATH = "/api/majors"
+const DEGREES_REBUILD_PATH = "/api/degrees/rebuild-usage-counts"
+const MAJORS_REBUILD_PATH = "/api/majors/rebuild-usage-counts"
+
+export async function fetchMajors(): Promise<MajorLookupItem[]> {
+  const raw = await apiGet<unknown>(MAJORS_PATH)
+  return sortMajorLookupItems(normalizeMajorLookupList(raw))
 }
 
-export interface DegreeDto {
-  id: number
-  name: string
+export async function createMajor(name: string): Promise<MajorLookupItem> {
+  const raw = await apiPost<unknown>(MAJORS_PATH, { name: name.trim() })
+  const created = normalizeMajorLookupItem(raw)
+  if (!created) {
+    throw new Error("Invalid major create response.")
+  }
+  return created
 }
 
-async function getList<T>(path: string): Promise<T[]> {
-  return apiGet<T[]>(path)
+export async function fetchDegrees(): Promise<DegreeLookupItem[]> {
+  const raw = await apiGet<unknown>(DEGREES_PATH)
+  return sortDegreeLookupItems(normalizeDegreeLookupList(raw))
 }
 
-async function createItem<T extends { id: number; name: string }>(
-  path: string,
-  name: string,
-): Promise<T> {
-  return apiPost<T>(path, { name: name.trim() })
+export async function createDegree(name: string): Promise<DegreeLookupItem> {
+  const raw = await apiPost<unknown>(DEGREES_PATH, { name: name.trim() })
+  const created = normalizeDegreeLookupItem(raw)
+  if (!created) {
+    throw new Error("Invalid degree create response.")
+  }
+  return created
 }
 
-export async function fetchMajors(): Promise<MajorDto[]> {
-  return getList<MajorDto>("/api/majors")
+/** Admin + Super Admin — recompute all degree usage counts. */
+export async function rebuildDegreeUsageCounts(): Promise<void> {
+  await apiPost<unknown>(DEGREES_REBUILD_PATH, {})
 }
 
-export async function createMajor(name: string): Promise<MajorDto> {
-  return createItem<MajorDto>("/api/majors", name)
-}
-
-export async function fetchDegrees(): Promise<DegreeDto[]> {
-  return getList<DegreeDto>("/api/degrees")
-}
-
-export async function createDegree(name: string): Promise<DegreeDto> {
-  return createItem<DegreeDto>("/api/degrees", name)
+/** Admin + Super Admin — recompute all major usage counts. */
+export async function rebuildMajorUsageCounts(): Promise<void> {
+  await apiPost<unknown>(MAJORS_REBUILD_PATH, {})
 }
