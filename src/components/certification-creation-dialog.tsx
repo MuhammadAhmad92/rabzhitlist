@@ -164,18 +164,30 @@ export function CertificationCreationDialog({
     onOpenChange?.(newOpen)
   }
 
-  const prevOpenRef = useRef(open)
+  /** Must start false — edit dialog often mounts with `open={true}` (conditional render + setState batch). */
+  const prevOpenRef = useRef(false)
+  const prevEditCertIdRef = useRef<number | null>(null)
 
   useEffect(() => {
     const wasOpen = prevOpenRef.current
     prevOpenRef.current = open
 
-    if (open && !wasOpen) {
+    const editCertId = mode === "edit" && certificationData ? certificationData.id : null
+    const editCertChanged =
+      open && editCertId != null && prevEditCertIdRef.current !== editCertId
+    if (open && editCertId != null) {
+      prevEditCertIdRef.current = editCertId
+    } else if (!open) {
+      prevEditCertIdRef.current = null
+    }
+
+    if (open && (!wasOpen || editCertChanged)) {
       if (mode === "edit" && certificationData) {
         const formDataFromCertification = certificationToFormData(certificationData)
         setFormData(formDataFromCertification)
+        setIssuerSearchQuery(formDataFromCertification.issuerName.trim())
         initialFormDataRef.current = formDataFromCertification
-      } else {
+      } else if (!wasOpen) {
         let formDataToUse: CertificationFormData = initialName
           ? { ...initialFormData, certificationName: initialName }
           : { ...initialFormData }
