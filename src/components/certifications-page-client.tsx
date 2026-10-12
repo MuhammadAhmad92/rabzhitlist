@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Award, Globe, X } from "lucide-react"
+import { Award, Combine, Globe, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { CertificationMergeDialog } from "@/components/certification-merge-dialog"
 import { CertificationsTable } from "@/components/certifications-table"
 import { CertificationCreationDialog, CertificationFormData, CertificationVerificationState } from "@/components/certification-creation-dialog"
 import { CertificationsFilterDialog, CertificationFilters } from "@/components/certifications-filter-dialog"
@@ -14,6 +15,7 @@ import { deleteCreatedByUserIdParam } from "@/lib/utils/created-by-user-id"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
 import type { Certification, CertificationIssuer } from "@/lib/types/certification"
 import { fetchCertificationsPage, fetchCertificationIssuers, createCertification, updateCertification, deleteCertification } from "@/lib/services/certifications-api"
+import { useNavigationAccess } from "@/components/role-route-guard"
 import { toast } from "sonner"
 
 const DEFAULT_PAGE_SIZE = 20
@@ -39,6 +41,7 @@ function parseCertificationFilterFromSearchParams(
 export function CertificationsPageClient() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { canAccessCatalog } = useNavigationAccess()
   const { createdByUserId, dismissCreatedByUserId, markCreatedByUserIdDismissed } =
     useCreatedByUserIdListFilter()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
@@ -66,6 +69,26 @@ export function CertificationsPageClient() {
   const listFilterKey = `${certificationIdFromUrl ?? ""}|${certificationFilterFromUrl?.name ?? ""}`
   const prevListFilterKeyRef = useRef<string | null>(null)
 
+  const [selectedSourceIds, setSelectedSourceIds] = useState<Set<number>>(() => new Set())
+  const [targetCertificationId, setTargetCertificationId] = useState<number | null>(null)
+
+  const dialogFilterKey = useMemo(
+    () =>
+      JSON.stringify({
+        certificationNameSearch: filters.certificationNameSearch,
+        issuerIds: filters.issuerIds,
+        dataProgressMin: filters.dataProgressMin,
+        dataProgressMax: filters.dataProgressMax,
+      }),
+    [filters]
+  )
+  const prevDialogFilterKeyRef = useRef<string | null>(null)
+
+  const resetMergeSelection = useCallback(() => {
+    setSelectedSourceIds(new Set())
+    setTargetCertificationId(null)
+  }, [])
+
   const [items, setItems] = useState<Certification[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [pageNumber, setPageNumber] = useState(1)
@@ -86,8 +109,20 @@ export function CertificationsPageClient() {
     if (isFilterChange) {
       setItems([])
       setCertificationsLoading(true)
+      resetMergeSelection()
     }
-  }, [listFilterKey])
+  }, [listFilterKey, resetMergeSelection])
+
+  useEffect(() => {
+    if (prevDialogFilterKeyRef.current === null) {
+      prevDialogFilterKeyRef.current = dialogFilterKey
+      return
+    }
+    if (prevDialogFilterKeyRef.current !== dialogFilterKey) {
+      prevDialogFilterKeyRef.current = dialogFilterKey
+      resetMergeSelection()
+    }
+  }, [dialogFilterKey, resetMergeSelection])
 
   const loadCertifications = useCallback(async (page: number, size: number) => {
     try {
@@ -188,6 +223,7 @@ export function CertificationsPageClient() {
     router.push(q ? `/certifications?${q}` : "/certifications")
   }
 
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [certificationToEdit, setCertificationToEdit] = useState<Certification | null>(null)
 
@@ -227,10 +263,57 @@ export function CertificationsPageClient() {
     setEditDialogOpen(true)
   }
 
+  const handleSourceCheckedChange = useCallback((certificationId: number, checked: boolean) => {
+    setSelectedSourceIds((prev) => {
+      const next = new Set(prev)
+      if (checked) {
+        next.add(certificationId)
+      } else {
+        next.delete(certificationId)
+      }
+      return next
+    })
+    if (checked) {
+      setTargetCertificationId((prev) => (prev === certificationId ? null : prev))
+    }
+  }, [])
+
+  const handleTargetSelect = useCallback((certificationId: number) => {
+    setTargetCertificationId(certificationId)
+    setSelectedSourceIds((prev) => {
+      if (!prev.has(certificationId)) return prev
+      const next = new Set(prev)
+      next.delete(certificationId)
+      return next
+    })
+  }, [])
+
+  const mergeSelectionReady = useMemo(() => {
+    if (selectedSourceIds.size < 1 || targetCertificationId == null) return false
+    return !selectedSourceIds.has(targetCertificationId)
+  }, [selectedSourceIds, targetCertificationId])
+
+  const mergeButtonDisabledTitle = useMemo(() => {
+    if (certificationsLoading) return "Loading certifications…"
+    if (selectedSourceIds.size < 1) return "Select at least one source certification."
+    if (targetCertificationId == null) return "Select a target certification."
+    if (selectedSourceIds.has(targetCertificationId)) {
+      return "Target cannot also be a source."
+    }
+    return undefined
+  }, [certificationsLoading, selectedSourceIds, targetCertificationId])
+
   const handleDeleteCertification = async (certification: Certification) => {
     try {
       await deleteCertification(certification.id)
       toast.success(`Certification "${certification.name}" has been deleted successfully.`)
+      setSelectedSourceIds((prev) => {
+        if (!prev.has(certification.id)) return prev
+        const next = new Set(prev)
+        next.delete(certification.id)
+        return next
+      })
+      setTargetCertificationId((prev) => (prev === certification.id ? null : prev))
       await loadCertifications(pageNumber, pageSize)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -262,6 +345,18 @@ export function CertificationsPageClient() {
             onClearFilters={handleClearFilters}
             issuers={issuers}
           />
+          {canAccessCatalog ? (
+            <Button
+              type="button"
+              disabled={!mergeSelectionReady || certificationsLoading}
+              title={mergeButtonDisabledTitle}
+              className="transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md cursor-pointer"
+              onClick={() => setMergeDialogOpen(true)}
+            >
+              <Combine className="h-4 w-4" />
+              Merge Certification
+            </Button>
+          ) : null}
           <CertificationCreationDialog
             onSubmit={handleCertificationSubmit}
             issuers={issuers}
@@ -310,7 +405,25 @@ export function CertificationsPageClient() {
         onPageSizeChange={handlePageSizeChange}
         onEdit={handleEditCertification}
         onDelete={handleDeleteCertification}
+        showMergeUi={canAccessCatalog}
+        selectedSourceIds={selectedSourceIds}
+        targetCertificationId={targetCertificationId}
+        onSourceCheckedChange={handleSourceCheckedChange}
+        onTargetSelect={handleTargetSelect}
       />
+
+      {canAccessCatalog && targetCertificationId != null && selectedSourceIds.size > 0 ? (
+        <CertificationMergeDialog
+          open={mergeDialogOpen}
+          onOpenChange={setMergeDialogOpen}
+          sourceIds={Array.from(selectedSourceIds)}
+          existingTargetId={targetCertificationId}
+          onMergeSuccess={() => {
+            resetMergeSelection()
+            void loadCertifications(pageNumber, pageSize)
+          }}
+        />
+      ) : null}
 
       {certificationToEdit && (
         <CertificationCreationDialog
