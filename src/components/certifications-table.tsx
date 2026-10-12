@@ -19,6 +19,8 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Table,
   TableBody,
@@ -78,6 +80,11 @@ interface CertificationsTableProps {
   onAdd?: () => void
   onEdit?: (certification: Certification) => void
   onDelete?: (certification: Certification) => void | Promise<void>
+  showMergeUi?: boolean
+  selectedSourceIds?: ReadonlySet<number>
+  targetCertificationId?: number | null
+  onSourceCheckedChange?: (certificationId: number, checked: boolean) => void
+  onTargetSelect?: (certificationId: number) => void
 }
 
 type SortKey = keyof Certification | "issuerName"
@@ -121,6 +128,11 @@ export function CertificationsTable({
   onAdd,
   onEdit,
   onDelete,
+  showMergeUi = false,
+  selectedSourceIds,
+  targetCertificationId = null,
+  onSourceCheckedChange,
+  onTargetSelect,
 }: CertificationsTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("name")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
@@ -229,14 +241,17 @@ export function CertificationsTable({
     )
   }
 
-  return (
-    <div className="space-y-4">
-      {/* Table */}
-      <div className="rounded-md border">
-        <Table>
+  const certificationsTable = (
+          <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-[60px]">No.</TableHead>
+              {showMergeUi ? (
+                <>
+                  <TableHead className="w-[72px] text-center">Source</TableHead>
+                  <TableHead className="w-[72px] text-center">Target</TableHead>
+                </>
+              ) : null}
               <TableHead>
                 <SortButton column="name">Name</SortButton>
               </TableHead>
@@ -260,6 +275,33 @@ export function CertificationsTable({
                 <TableCell className="font-mono text-xs text-muted-foreground">
                   {(pageNumber - 1) * pageSize + index + 1}
                 </TableCell>
+                {showMergeUi ? (
+                  <>
+                    <TableCell
+                      className="text-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Checkbox
+                        checked={selectedSourceIds?.has(certification.id) ?? false}
+                        disabled={targetCertificationId === certification.id}
+                        aria-label={`Select ${certification.name} as merge source`}
+                        onCheckedChange={(checked) => {
+                          onSourceCheckedChange?.(certification.id, checked === true)
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell
+                      className="text-center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <RadioGroupItem
+                        value={String(certification.id)}
+                        aria-label={`Select ${certification.name} as merge target`}
+                        disabled={selectedSourceIds?.has(certification.id) ?? false}
+                      />
+                    </TableCell>
+                  </>
+                ) : null}
                 <TableCell className="font-medium">
                   {certification.name}
                 </TableCell>
@@ -347,7 +389,29 @@ export function CertificationsTable({
             ))}
           </TableBody>
         </Table>
-      </div>
+  )
+
+  const targetRadioGroup =
+    showMergeUi ? (
+      <RadioGroup
+        value={targetCertificationId != null ? String(targetCertificationId) : ""}
+        onValueChange={(value) => {
+          if (!value || !onTargetSelect) return
+          const id = Number.parseInt(value, 10)
+          if (Number.isFinite(id)) onTargetSelect(id)
+        }}
+        className="contents"
+      >
+        {certificationsTable}
+      </RadioGroup>
+    ) : (
+      certificationsTable
+    )
+
+  return (
+    <div className="space-y-4">
+      {/* Table */}
+      <div className="rounded-md border">{targetRadioGroup}</div>
 
       {/* Pagination */}
       <div className="flex items-center justify-between px-2">
