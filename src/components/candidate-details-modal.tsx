@@ -122,6 +122,7 @@ import {
 import { SALARY_POLICY_TO_API } from "@/lib/services/employers-api"
 
 import { VerificationBadge } from "@/components/ui/verification-badge"
+import { VERIFICATION_UI_ENABLED } from "@/lib/config/verification-ui-enabled"
 import { FieldHistoryPopover } from "@/components/ui/field-history-popover"
 import { CandidateCreationDialog, CandidateFormData, VerificationState, candidateToFormData, type CandidateLookups, type CandidateSubmitOptions, type CandidateCreateSubmitResult } from "@/components/candidate-creation-dialog"
 import { CandidateResumeField } from "@/components/candidates/candidate-resume-field"
@@ -220,6 +221,8 @@ import { formatApiDateOnlyLabel } from "@/lib/utils/work-experience-dates"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import { CANDIDATE_CREATION_DIALOG_SHELL_CLASS } from "@/lib/utils/candidate-form-dialog-layout"
+import { UserAvatar } from "@/components/user-avatar"
 import { useAuth } from "@/contexts/auth-context"
 import { canUseCandidateSalaryUi } from "@/lib/auth/roles"
 import { canMutateCandidateRecord } from "@/lib/utils/candidate-mutation-access"
@@ -540,12 +543,10 @@ const baseTechStackOptions: MultiSelectOption[] = extractUniqueTechStacks()
 
 const CALL_NOTES_SECTION_ID = "call-notes"
 const FINAL_REMARKS_SECTION_ID = "final-remarks"
-const CALL_NOTES_PLACEHOLDER = "Enter everything discussed during the call…"
-const FINAL_REMARKS_PLACEHOLDER = "Enter remarks made after the call or after reviewing this profile…"
 
-function isExclusiveCandidateSection(sectionId: string): boolean {
-  return sectionId === CALL_NOTES_SECTION_ID || sectionId === FINAL_REMARKS_SECTION_ID
-}
+/** Read-only long text in scroll sections (Call Notes, Final Remarks). */
+const CANDIDATE_DETAILS_LONG_TEXT_BLOCK_CLASS =
+  "min-h-[8rem] max-h-[min(24rem,40vh)] overflow-y-auto rounded-md border border-border bg-muted/40 px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap"
 
 interface CandidateDetailsModalProps {
   candidate: Candidate | null
@@ -755,7 +756,8 @@ const InlineEditableTextarea: React.FC<InlineEditableTextareaProps> = ({
   const handleSave = async () => {
     // No change check
     const currentValue = value || ''
-    const verificationChanged = willVerify !== isCurrentlyVerified
+    const verificationChanged =
+      VERIFICATION_UI_ENABLED && willVerify !== isCurrentlyVerified
     if (editValue === currentValue && !verificationChanged) {
       setIsEditing(false)
       return
@@ -764,7 +766,7 @@ const InlineEditableTextarea: React.FC<InlineEditableTextareaProps> = ({
     // Save
     setIsSaving(true)
     try {
-      await onSave(fieldName, editValue, willVerify)
+      await onSave(fieldName, editValue, VERIFICATION_UI_ENABLED && willVerify)
       setIsEditing(false)
       setError(null)
     } catch (err) {
@@ -813,7 +815,7 @@ const InlineEditableTextarea: React.FC<InlineEditableTextareaProps> = ({
               onClick={handleSave}
               disabled={isSaving}
               className="h-8 w-8 p-0"
-              title={willVerify ? "Save & Verify" : "Save"}
+              title={VERIFICATION_UI_ENABLED && willVerify ? "Save & Verify" : "Save"}
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -832,7 +834,7 @@ const InlineEditableTextarea: React.FC<InlineEditableTextareaProps> = ({
               <X className="w-4 h-4" />
             </Button>
           </div>
-          {/* Mark as verified checkbox - only in edit mode */}
+          {VERIFICATION_UI_ENABLED ? (
           <div className="flex items-center gap-2 pl-1">
             <Checkbox
               id={`verify-${fieldName}`}
@@ -851,6 +853,7 @@ const InlineEditableTextarea: React.FC<InlineEditableTextareaProps> = ({
               {willVerify ? '✓ Verified' : 'Mark as verified'}
             </Label>
           </div>
+          ) : null}
           {error && (
             <p className="text-xs text-red-500">{error}</p>
           )}
@@ -1010,7 +1013,8 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
   const handleSave = async () => {
     // No change check
     const currentValue = value || ''
-    const verificationChanged = willVerify !== isCurrentlyVerified
+    const verificationChanged =
+      VERIFICATION_UI_ENABLED && willVerify !== isCurrentlyVerified
     if (editValue === currentValue && !verificationChanged) {
       setIsEditing(false)
       setOpen(false)
@@ -1020,7 +1024,7 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
     // Save
     setIsSaving(true)
     try {
-      await onSave(fieldName, editValue, willVerify)
+      await onSave(fieldName, editValue, VERIFICATION_UI_ENABLED && willVerify)
       setIsEditing(false)
       setError(null)
       setOpen(false)
@@ -1226,7 +1230,7 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
               onClick={handleSave}
               disabled={isSaving}
               className="h-8 w-8 p-0"
-              title={willVerify ? "Save & Verify" : "Save"}
+              title={VERIFICATION_UI_ENABLED && willVerify ? "Save & Verify" : "Save"}
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -1245,7 +1249,7 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
               <X className="w-4 h-4" />
             </Button>
           </div>
-          {/* Mark as verified checkbox - only in edit mode */}
+          {VERIFICATION_UI_ENABLED ? (
           <div className="flex items-center gap-2 pl-1">
             <Checkbox
               id={`verify-${fieldName}`}
@@ -1264,6 +1268,7 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
               {willVerify ? '✓ Verified' : 'Mark as verified'}
             </Label>
           </div>
+          ) : null}
           {error && (
             <p className="text-xs text-red-500">{error}</p>
           )}
@@ -1372,7 +1377,8 @@ const InlineEditableDate: React.FC<InlineEditableDateProps> = ({
 
   const handleSave = async () => {
     // No change check
-    const verificationChanged = willVerify !== isCurrentlyVerified
+    const verificationChanged =
+      VERIFICATION_UI_ENABLED && willVerify !== isCurrentlyVerified
     const dateChanged = editValue?.getTime() !== value?.getTime()
     if (!dateChanged && !verificationChanged) {
       setIsEditing(false)
@@ -1383,7 +1389,7 @@ const InlineEditableDate: React.FC<InlineEditableDateProps> = ({
     // Save
     setIsSaving(true)
     try {
-      await onSave(fieldName, editValue, willVerify)
+      await onSave(fieldName, editValue, VERIFICATION_UI_ENABLED && willVerify)
       setIsEditing(false)
       setError(null)
       setOpen(false)
@@ -1437,7 +1443,7 @@ const InlineEditableDate: React.FC<InlineEditableDateProps> = ({
               onClick={handleSave}
               disabled={isSaving}
               className="h-8 w-8 p-0"
-              title={willVerify ? "Save & Verify" : "Save"}
+              title={VERIFICATION_UI_ENABLED && willVerify ? "Save & Verify" : "Save"}
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -1456,7 +1462,7 @@ const InlineEditableDate: React.FC<InlineEditableDateProps> = ({
               <X className="w-4 h-4" />
             </Button>
           </div>
-          {/* Mark as verified checkbox - only in edit mode */}
+          {VERIFICATION_UI_ENABLED ? (
           <div className="flex items-center gap-2 pl-1">
             <Checkbox
               id={`verify-${fieldName}`}
@@ -1475,6 +1481,7 @@ const InlineEditableDate: React.FC<InlineEditableDateProps> = ({
               {willVerify ? '✓ Verified' : 'Mark as verified'}
             </Label>
           </div>
+          ) : null}
           {error && (
             <p className="text-xs text-red-500">{error}</p>
           )}
@@ -1604,7 +1611,8 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
 
   const handleSave = async () => {
     // No change check
-    const verificationChanged = willVerify !== isCurrentlyVerified
+    const verificationChanged =
+      VERIFICATION_UI_ENABLED && willVerify !== isCurrentlyVerified
     const currentResolved = resolveMultiSelectValues(value ?? [], mergedOptions)
     const arraysEqual =
       currentResolved.length === editValue.length &&
@@ -1622,7 +1630,7 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
     // Save
     setIsSaving(true)
     try {
-      await onSave(fieldName, editValue, willVerify)
+      await onSave(fieldName, editValue, VERIFICATION_UI_ENABLED && willVerify)
       setIsEditing(false)
       setError(null)
     } catch (err) {
@@ -1662,7 +1670,7 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
             />
           </div>
           
-          {/* Mark as verified checkbox */}
+          {VERIFICATION_UI_ENABLED ? (
           <div className="flex items-center gap-2 pl-1">
             <Checkbox
               id={`verify-${fieldName}`}
@@ -1681,6 +1689,7 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
               {willVerify ? '✓ Verified' : 'Mark as verified'}
             </Label>
           </div>
+          ) : null}
           
           <div className="flex gap-1 shrink-0">
             <Button
@@ -1688,7 +1697,7 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
               onClick={handleSave}
               disabled={isSaving}
               className="h-8 w-8 p-0"
-              title={willVerify ? "Save & Verify" : "Save"}
+              title={VERIFICATION_UI_ENABLED && willVerify ? "Save & Verify" : "Save"}
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -1956,7 +1965,8 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
   const handleSave = async () => {
     // No change check
     const currentValue = value || []
-    const verificationChanged = willVerify !== isCurrentlyVerified
+    const verificationChanged =
+      VERIFICATION_UI_ENABLED && willVerify !== isCurrentlyVerified
     const arraysEqual = currentValue.length === editValue.length && 
       currentValue.every((val, idx) => 
         val.id === editValue[idx]?.id && 
@@ -1974,7 +1984,7 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
     // Save
     setIsSaving(true)
     try {
-      await onSave(fieldName, editValue, willVerify)
+      await onSave(fieldName, editValue, VERIFICATION_UI_ENABLED && willVerify)
       setIsEditing(false)
       setError(null)
     } catch (err) {
@@ -2009,7 +2019,7 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
             />
           </div>
           
-          {/* Mark as verified checkbox */}
+          {VERIFICATION_UI_ENABLED ? (
           <div className="flex items-center gap-2 pl-1">
             <Checkbox
               id={`verify-${fieldName}`}
@@ -2028,6 +2038,7 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
               {willVerify ? '✓ Verified' : 'Mark as verified'}
             </Label>
           </div>
+          ) : null}
           
           <div className="flex gap-1 shrink-0">
             <Button
@@ -2035,7 +2046,7 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
               onClick={handleSave}
               disabled={isSaving}
               className="h-8 w-8 p-0"
-              title={willVerify ? "Save & Verify" : "Save"}
+              title={VERIFICATION_UI_ENABLED && willVerify ? "Save & Verify" : "Save"}
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -2315,7 +2326,8 @@ const InlineEditableResume: React.FC<InlineEditableResumeProps> = ({
   }
 
   const handleSave = async () => {
-    const verificationChanged = willVerify !== isCurrentlyVerified
+    const verificationChanged =
+      VERIFICATION_UI_ENABLED && willVerify !== isCurrentlyVerified
     const hasNewFile = resumeFile != null
     const clearedExisting = existingRemoved && !!existingFileName
 
@@ -2334,7 +2346,7 @@ const InlineEditableResume: React.FC<InlineEditableResumeProps> = ({
       await onSave({
         file: resumeFile,
         clearExisting: clearedExisting,
-        shouldVerify: willVerify,
+        shouldVerify: VERIFICATION_UI_ENABLED && willVerify,
       })
       setIsEditing(false)
       resetEditState()
@@ -2438,7 +2450,7 @@ const InlineEditableResume: React.FC<InlineEditableResumeProps> = ({
             onClick={handleSave}
             disabled={isSaving}
             className="h-8 w-8 p-0"
-            title={willVerify ? "Save & Verify" : "Save"}
+            title={VERIFICATION_UI_ENABLED && willVerify ? "Save & Verify" : "Save"}
           >
             {isSaving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -2457,6 +2469,7 @@ const InlineEditableResume: React.FC<InlineEditableResumeProps> = ({
             <X className="w-4 h-4" />
           </Button>
         </div>
+        {VERIFICATION_UI_ENABLED ? (
         <div className="flex items-center gap-2 pl-1">
           <Checkbox
             id={`verify-${fieldName}`}
@@ -2475,6 +2488,7 @@ const InlineEditableResume: React.FC<InlineEditableResumeProps> = ({
             {willVerify ? '✓ Verified' : 'Mark as verified'}
           </Label>
         </div>
+        ) : null}
         {error && (
           <p className="text-xs text-red-500">{error}</p>
         )}
@@ -2612,7 +2626,8 @@ const InlineEditableField: React.FC<InlineEditableFieldProps> = ({
 
     // No change check
     const currentValue = value !== null && value !== undefined ? String(value) : ''
-    const verificationChanged = willVerify !== isCurrentlyVerified
+    const verificationChanged =
+      VERIFICATION_UI_ENABLED && willVerify !== isCurrentlyVerified
     if (editValue === currentValue && !verificationChanged) {
       setIsEditing(false)
       return
@@ -2622,7 +2637,7 @@ const InlineEditableField: React.FC<InlineEditableFieldProps> = ({
     setIsSaving(true)
     try {
       const newValue = fieldType === 'number' ? Number(editValue) : editValue
-      await onSave(fieldName, newValue, willVerify)
+      await onSave(fieldName, newValue, VERIFICATION_UI_ENABLED && willVerify)
       setIsEditing(false)
       setError(null)
     } catch (err) {
@@ -2667,7 +2682,7 @@ const InlineEditableField: React.FC<InlineEditableFieldProps> = ({
                 onClick={handleSave}
                 disabled={isSaving}
                 className="h-8 w-8 p-0 shrink-0"
-                title={willVerify ? "Save & Verify" : "Save"}
+                title={VERIFICATION_UI_ENABLED && willVerify ? "Save & Verify" : "Save"}
               >
                 {isSaving ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -2686,7 +2701,7 @@ const InlineEditableField: React.FC<InlineEditableFieldProps> = ({
                 <X className="w-4 h-4" />
               </Button>
             </div>
-            {/* Mark as verified checkbox - only in edit mode */}
+            {VERIFICATION_UI_ENABLED ? (
             <div className="flex items-center gap-2 pl-1">
               <Checkbox
                 id={`verify-${fieldName}`}
@@ -2705,6 +2720,7 @@ const InlineEditableField: React.FC<InlineEditableFieldProps> = ({
                 {willVerify ? '✓ Verified' : 'Mark as verified'}
               </Label>
             </div>
+            ) : null}
             {error && (
               <p className="text-xs text-red-500">{error}</p>
             )}
@@ -2763,7 +2779,7 @@ const InlineEditableSelect: React.FC<InlineEditableSelectProps> = ({
   formatDisplay,
   verificationIndicator,
   getFieldVerification,
-  showVerification = true,
+  showVerification = VERIFICATION_UI_ENABLED,
   className = "",
 }) => {
   const resolvedValue = normalizeValue(value ?? undefined)
@@ -2812,7 +2828,7 @@ const InlineEditableSelect: React.FC<InlineEditableSelectProps> = ({
 
     setIsSaving(true)
     try {
-      await onSave(fieldName, editValue, willVerify)
+      await onSave(fieldName, editValue, VERIFICATION_UI_ENABLED && willVerify)
       setIsEditing(false)
       setError(null)
     } catch {
@@ -2859,7 +2875,11 @@ const InlineEditableSelect: React.FC<InlineEditableSelectProps> = ({
                 onClick={handleSave}
                 disabled={isSaving}
                 className="h-8 w-8 p-0 shrink-0"
-                title={showVerification && willVerify ? "Save & Verify" : "Save"}
+                title={
+                  VERIFICATION_UI_ENABLED && showVerification && willVerify
+                    ? "Save & Verify"
+                    : "Save"
+                }
               >
                 {isSaving ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -2878,7 +2898,7 @@ const InlineEditableSelect: React.FC<InlineEditableSelectProps> = ({
                 <X className="w-4 h-4" />
               </Button>
             </div>
-            {showVerification && (
+            {VERIFICATION_UI_ENABLED && showVerification && (
               <div className="flex items-center gap-2 pl-1">
                 <Checkbox
                   id={`verify-${fieldName}`}
@@ -2913,7 +2933,7 @@ const InlineEditableSelect: React.FC<InlineEditableSelectProps> = ({
               </span>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              {showVerification && verificationIndicator}
+              {VERIFICATION_UI_ENABLED && showVerification && verificationIndicator}
               <Button
                 size="sm"
                 variant="ghost"
@@ -3148,7 +3168,8 @@ const InlineEditableUniversity: React.FC<InlineEditableUniversityProps> = ({
       setError("Select a university")
       return
     }
-    const verificationChanged = willVerify !== isCurrentlyVerified
+    const verificationChanged =
+      VERIFICATION_UI_ENABLED && willVerify !== isCurrentlyVerified
     const selectionChanged =
       !linkedUniversity || !universitySelectionsEqual(editValue, linkedUniversity)
     if (!selectionChanged && !verificationChanged) {
@@ -3188,7 +3209,7 @@ const InlineEditableUniversity: React.FC<InlineEditableUniversityProps> = ({
               onClick={handleSave}
               disabled={isSaving}
               className="h-8 w-8 p-0 shrink-0"
-              title={willVerify ? "Save & Verify" : "Save"}
+              title={VERIFICATION_UI_ENABLED && willVerify ? "Save & Verify" : "Save"}
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -3207,6 +3228,7 @@ const InlineEditableUniversity: React.FC<InlineEditableUniversityProps> = ({
               <X className="w-4 h-4" />
             </Button>
           </div>
+          {VERIFICATION_UI_ENABLED ? (
           <div className="flex items-center gap-2 pl-1">
             <Checkbox
               id={`verify-${fieldName}`}
@@ -3227,6 +3249,7 @@ const InlineEditableUniversity: React.FC<InlineEditableUniversityProps> = ({
               {willVerify ? "✓ Verified" : "Mark as verified"}
             </Label>
           </div>
+          ) : null}
           {error && <p className="text-xs text-red-500">{error}</p>}
         </div>
       </div>
@@ -3383,7 +3406,8 @@ const InlineEditableEmployer: React.FC<InlineEditableEmployerProps> = ({
       setError("Select an employer")
       return
     }
-    const verificationChanged = willVerify !== isCurrentlyVerified
+    const verificationChanged =
+      VERIFICATION_UI_ENABLED && willVerify !== isCurrentlyVerified
     const selectionChanged =
       !linkedEmployer || !employerSelectionsEqual(editValue, linkedEmployer)
     if (!selectionChanged && !verificationChanged) {
@@ -3424,7 +3448,7 @@ const InlineEditableEmployer: React.FC<InlineEditableEmployerProps> = ({
             onClick={handleSave}
             disabled={isSaving}
             className="h-8 w-8 p-0 shrink-0"
-            title={willVerify ? "Save & Verify" : "Save"}
+            title={VERIFICATION_UI_ENABLED && willVerify ? "Save & Verify" : "Save"}
           >
             {isSaving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -3443,6 +3467,7 @@ const InlineEditableEmployer: React.FC<InlineEditableEmployerProps> = ({
             <X className="w-4 h-4" />
           </Button>
         </div>
+        {VERIFICATION_UI_ENABLED ? (
         <div className="flex items-center gap-2 pl-1">
           <Checkbox
             id={`verify-${fieldName}`}
@@ -3463,6 +3488,7 @@ const InlineEditableEmployer: React.FC<InlineEditableEmployerProps> = ({
             {willVerify ? "✓ Verified" : "Mark as verified"}
           </Label>
         </div>
+        ) : null}
         {error && <p className="text-xs text-red-500">{error}</p>}
       </div>
     )
@@ -3635,7 +3661,8 @@ const InlineEditableCertification: React.FC<InlineEditableCertificationProps> = 
       setError("Select a certification")
       return
     }
-    const verificationChanged = willVerify !== isCurrentlyVerified
+    const verificationChanged =
+      VERIFICATION_UI_ENABLED && willVerify !== isCurrentlyVerified
     const selectionChanged =
       !displaySelection ||
       !certificationSelectionsEqual(editValue, displaySelection)
@@ -3682,7 +3709,7 @@ const InlineEditableCertification: React.FC<InlineEditableCertificationProps> = 
               onClick={handleSave}
               disabled={isSaving}
               className="h-8 w-8 p-0 shrink-0"
-              title={willVerify ? "Save & Verify" : "Save"}
+              title={VERIFICATION_UI_ENABLED && willVerify ? "Save & Verify" : "Save"}
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -3701,6 +3728,7 @@ const InlineEditableCertification: React.FC<InlineEditableCertificationProps> = 
               <X className="w-4 h-4" />
             </Button>
           </div>
+          {VERIFICATION_UI_ENABLED ? (
           <div className="flex items-center gap-2 pl-1">
             <Checkbox
               id={`verify-${fieldName}`}
@@ -3721,6 +3749,7 @@ const InlineEditableCertification: React.FC<InlineEditableCertificationProps> = 
               {willVerify ? "✓ Verified" : "Mark as verified"}
             </Label>
           </div>
+          ) : null}
           {error && <p className="text-xs text-red-500">{error}</p>}
         </div>
       </div>
@@ -3873,7 +3902,8 @@ const InlineEditableProject: React.FC<InlineEditableProjectProps> = ({
       setError("Select a project")
       return
     }
-    const verificationChanged = willVerify !== isCurrentlyVerified
+    const verificationChanged =
+      VERIFICATION_UI_ENABLED && willVerify !== isCurrentlyVerified
     const selectionChanged =
       !displaySelection || !projectSelectionsEqual(editValue, displaySelection)
     if (!selectionChanged && !verificationChanged) {
@@ -3915,7 +3945,7 @@ const InlineEditableProject: React.FC<InlineEditableProjectProps> = ({
               onClick={handleSave}
               disabled={isSaving}
               className="h-8 w-8 p-0 shrink-0"
-              title={willVerify ? "Save & Verify" : "Save"}
+              title={VERIFICATION_UI_ENABLED && willVerify ? "Save & Verify" : "Save"}
             >
               {isSaving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -3934,6 +3964,7 @@ const InlineEditableProject: React.FC<InlineEditableProjectProps> = ({
               <X className="w-4 h-4" />
             </Button>
           </div>
+          {VERIFICATION_UI_ENABLED ? (
           <div className="flex items-center gap-2 pl-1">
             <Checkbox
               id={`verify-${fieldName}`}
@@ -3954,6 +3985,7 @@ const InlineEditableProject: React.FC<InlineEditableProjectProps> = ({
               {willVerify ? "✓ Verified" : "Mark as verified"}
             </Label>
           </div>
+          ) : null}
           {error && <p className="text-xs text-red-500">{error}</p>}
         </div>
       </div>
@@ -4067,7 +4099,8 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
   
   const handleSave = async () => {
     // No change check
-    const verificationChanged = willVerify !== isCurrentlyVerified
+    const verificationChanged =
+      VERIFICATION_UI_ENABLED && willVerify !== isCurrentlyVerified
     const valueChanged = editValue !== value
     
     if (!valueChanged && !verificationChanged) {
@@ -4077,7 +4110,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
     
     setIsSaving(true)
     try {
-      await onSave(fieldName, editValue, willVerify)
+      await onSave(fieldName, editValue, VERIFICATION_UI_ENABLED && willVerify)
       setIsEditing(false)
     } catch (err) {
       // Error handling - revert on error
@@ -4092,11 +4125,11 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
     <span className="text-sm font-medium text-muted-foreground block mb-0.5">{label}</span>
   )
 
-  const fieldVerificationIndicator = (
+  const fieldVerificationIndicator = VERIFICATION_UI_ENABLED ? (
       <div className="flex items-center gap-1 shrink-0">
       <VerificationBadge status={verification?.status || "unverified"} size="sm" />
       </div>
-    )
+    ) : null
   
   return (
     <div
@@ -4150,6 +4183,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
                   <p className="text-xs text-muted-foreground pl-1">{description}</p>
               )}
               
+              {VERIFICATION_UI_ENABLED ? (
               <div className="flex items-center gap-2 pl-1">
                 <Checkbox
                   id={`verify-${fieldName}`}
@@ -4170,6 +4204,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
                     {willVerify ? "✓ Verified" : "Mark as verified"}
                 </Label>
               </div>
+              ) : null}
             </div>
             
             <div className="flex gap-1 shrink-0">
@@ -4178,7 +4213,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
                 onClick={handleSave}
                 disabled={isSaving}
                   className="h-8 w-8 p-0 shrink-0"
-                title={willVerify ? "Save & Verify" : "Save"}
+                title={VERIFICATION_UI_ENABLED && willVerify ? "Save & Verify" : "Save"}
               >
                 {isSaving ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -4321,11 +4356,23 @@ export function CandidateDetailsModal({
   const { user: authUser } = useAuth()
   const showSalaryUi = canUseCandidateSalaryUi(authUser?.role)
   const hideCompensationFields = !showSalaryUi
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "work-experience", "tech-stacks", "education", "certifications", "competitions", "mentors", "verification"]))
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    new Set([
+      "basic",
+      "work-experience",
+      "tech-stacks",
+      "education",
+      "certifications",
+      "competitions",
+      "mentors",
+      "call-notes",
+      "final-remarks",
+      "verification",
+    ]),
+  )
   const [activeSection, setActiveSection] = useState<string>("basic-info")
   const [callNotes, setCallNotes] = useState("")
   const [callNotesLoading, setCallNotesLoading] = useState(false)
-  const [finalRemarksDraft, setFinalRemarksDraft] = useState("")
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isScrollingRef = useRef(false)
   
@@ -4601,11 +4648,6 @@ export function CandidateDetailsModal({
 
   // Handle tab change
   const handleTabChange = (value: string) => {
-    if (isExclusiveCandidateSection(value)) {
-      setActiveSection(value)
-      return
-    }
-
     isScrollingRef.current = true
     setActiveSection(value)
     requestAnimationFrame(() => {
@@ -4664,19 +4706,9 @@ export function CandidateDetailsModal({
     return () => controller.abort()
   }, [open, candidate?.id])
 
-  useEffect(() => {
-    if (!open) {
-      setFinalRemarksDraft("")
-      return
-    }
-    setFinalRemarksDraft(resolvedCandidate?.finalRemarks ?? "")
-  }, [open, resolvedCandidate?.id, resolvedCandidate?.finalRemarks])
-
   useScrollSpySection(scrollContainerRef, {
-    enabled: Boolean(candidate && open) && !isExclusiveCandidateSection(activeSection),
-    sectionIds: sections
-      .filter((section) => !isExclusiveCandidateSection(section.sectionId))
-      .map((section) => section.sectionId),
+    enabled: Boolean(candidate && open),
+    sectionIds: sections.map((section) => section.sectionId),
     scrollOffset: 80,
     onActiveSectionChange: setActiveSection,
     isScrollingRef,
@@ -6196,6 +6228,7 @@ export function CandidateDetailsModal({
     verified: number
     total: number 
   }) => {
+    if (!VERIFICATION_UI_ENABLED) return null
     if (total === 0) return null
 
     return (
@@ -6360,6 +6393,7 @@ export function CandidateDetailsModal({
     fieldName: string
     className?: string 
   }) => {
+    if (!VERIFICATION_UI_ENABLED) return null
     const verification = getFieldVerification(fieldName)
     const history = getFieldHistory(fieldName)
     
@@ -6499,18 +6533,21 @@ export function CandidateDetailsModal({
     <CandidateDetailsReadOnlyContext.Provider value={viewOnly}>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(
-        "!max-w-[95vw] sm:!max-w-6xl lg:!max-w-4xl max-h-[95vh] overflow-hidden flex flex-col p-0",
-        activeSection === CALL_NOTES_SECTION_ID || activeSection === FINAL_REMARKS_SECTION_ID
-          ? "h-[95vh]"
-          : undefined,
+        CANDIDATE_CREATION_DIALOG_SHELL_CLASS,
+        "overflow-hidden",
         viewOnly && "[&_button[title='Edit field']]:hidden [&_button[title='Edit contribution']]:hidden [&_button[title='Edit resume']]:hidden [&_button[title='Edit university']]:hidden [&_button[title='Edit employer']]:hidden [&_button[title='Edit certification']]:hidden [&_button[title='Edit project']]:hidden [&_button[title='Delete']]:hidden [&_button[title='Add']]:hidden",
       )}>
         <DialogHeader className="px-8 pt-8 pb-6 border-b border-border">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
-              <div className="size-14 bg-primary/10 rounded-full flex items-center justify-center">
-                <User className="size-7 text-primary" />
-            </div>
+              <span className="shrink-0" aria-label={viewCandidate.name || "Candidate"}>
+                <UserAvatar
+                  variant="profile"
+                  name={viewCandidate.name?.trim() || " "}
+                  email={viewCandidate.email?.trim() || " "}
+                  className="size-14 text-base ring-1 ring-border"
+                />
+              </span>
             <div>
                 <DialogTitle className="text-2xl font-semibold mb-1">
                   {viewCandidate.name}
@@ -6528,14 +6565,13 @@ export function CandidateDetailsModal({
             </div>
             <div className="flex gap-2 mr-12">
               {!viewOnly ? (
-              <Button 
-                variant="default" 
-                size="sm" 
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
                 onClick={() => setEditDialogOpen(true)}
-                className="gap-1.5"
               >
-                <ShieldCheck className="size-4" />
-                Edit & Verify
+                {VERIFICATION_UI_ENABLED ? "Edit Candidate & Verify" : "Edit Candidate"}
               </Button>
               ) : null}
               
@@ -6612,8 +6648,9 @@ export function CandidateDetailsModal({
           >
             <TabsList className="h-12 w-full justify-start rounded-none border-0 bg-transparent p-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               {sections.map((section) => {
-                const progress = getSectionProgress(section.sectionId)
-                const isFullyVerified = progress.percentage === 100
+                const progress = VERIFICATION_UI_ENABLED
+                  ? getSectionProgress(section.sectionId)
+                  : { percentage: 0, verified: 0, total: 0 }
                 
                 return (
                   <TabsTrigger
@@ -6626,30 +6663,15 @@ export function CandidateDetailsModal({
                       "cursor-pointer flex items-center gap-2"
                     )}
                     aria-label={
-                      isExclusiveCandidateSection(section.sectionId)
+                      !VERIFICATION_UI_ENABLED
                         ? section.label
                         : `Jump to ${section.label} section - ${progress.percentage}% verified (${progress.verified}/${progress.total})`
                     }
                   >
-                    <span className="hidden lg:inline">{section.label}</span>
-                    <span className="lg:hidden">{section.shortLabel}</span>
+                    <span className="hidden xl:inline">{section.label}</span>
+                    <span className="xl:hidden">{section.shortLabel}</span>
                     
-                    {/* Verification Badge */}
-                    {progress.total > 0 && (
-                      <Badge 
-                        variant="default"
-                        className={cn(
-                          "text-xs px-1.5 py-0.5 font-medium shrink-0",
-                          getVerificationBadgeColor(progress.percentage)
-                        )}
-                      >
-                        {isFullyVerified ? (
-                          <CheckCircle className="w-3 h-3" />
-                        ) : (
-                          `${progress.percentage}%`
-                        )}
-                      </Badge>
-                    )}
+                    {/* VERIFICATION_UI_DISABLED — tab verification badges */}
                   </TabsTrigger>
                 )
               })}
@@ -6659,53 +6681,8 @@ export function CandidateDetailsModal({
 
         <div
           ref={scrollContainerRef}
-          className={cn(
-            "flex-1 min-h-0 px-8 py-8",
-            activeSection === CALL_NOTES_SECTION_ID || activeSection === FINAL_REMARKS_SECTION_ID
-              ? "flex flex-col overflow-hidden"
-              : "overflow-y-auto space-y-6",
-          )}
+          className="flex-1 min-h-0 overflow-y-auto space-y-6 px-8 py-8"
         >
-          {activeSection === CALL_NOTES_SECTION_ID ? (
-            <div className="flex min-h-0 flex-1 flex-col">
-              {callNotesLoading ? (
-                <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  Loading call notes…
-                </div>
-              ) : (
-                <Textarea
-                  id="candidate-details-call-notes"
-                  value={callNotes}
-                  onChange={(event) => setCallNotes(event.target.value)}
-                  placeholder={CALL_NOTES_PLACEHOLDER}
-                  readOnly={viewOnly}
-                  aria-label="Call Notes"
-                  className={cn(
-                    "min-h-0 flex-1 field-sizing-fixed resize-none overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed",
-                    viewOnly && "bg-muted/40 cursor-default",
-                  )}
-                />
-              )}
-            </div>
-          ) : activeSection === FINAL_REMARKS_SECTION_ID ? (
-            <div className="flex min-h-0 flex-1 flex-col gap-3">
-              <Label htmlFor="candidate-details-final-remarks" className="text-base font-semibold shrink-0">
-                Final Remarks
-              </Label>
-              <Textarea
-                id="candidate-details-final-remarks"
-                value={finalRemarksDraft}
-                onChange={(event) => setFinalRemarksDraft(event.target.value)}
-                placeholder={FINAL_REMARKS_PLACEHOLDER}
-                readOnly={viewOnly}
-                className={cn(
-                  "min-h-0 flex-1 field-sizing-fixed resize-none overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed",
-                  viewOnly && "bg-muted/40 cursor-default",
-                )}
-              />
-            </div>
-          ) : (
           <>
           {/* <CandidateDataProgressPanel
             progress={dataProgress}
@@ -6714,25 +6691,7 @@ export function CandidateDetailsModal({
             onRetry={() => void loadDataProgress()}
           /> */}
 
-          {/* Verification Summary Bar */}
-          {verificationSummary && verificationSummary.totalFields > 0 && (
-            <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-lg border">
-              <ShieldCheck className="size-5 text-primary shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-sm font-medium">Data Verification</span>
-                  <Badge variant={verificationSummary.verificationPercentage === 100 ? 'default' : 'secondary'}>
-                    {verificationSummary.verificationPercentage}% Verified
-                  </Badge>
-              </div>
-                <Progress value={verificationSummary.verificationPercentage} className="h-2" />
-                <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-                  <span>{verificationSummary.verifiedFields} verified</span>
-                  <span>{verificationSummary.unverifiedFields} unverified</span>
-              </div>
-              </div>
-              </div>
-          )}
+          {/* VERIFICATION_UI_DISABLED — verification summary bar */}
 
           {/* Basic Information */}
           <section id="basic-info">
@@ -8135,6 +8094,93 @@ export function CandidateDetailsModal({
             </Collapsible>
           </section>
 
+          <section id={CALL_NOTES_SECTION_ID}>
+            <Collapsible
+              open={expandedSections.has("call-notes")}
+              onOpenChange={() => toggleSection("call-notes")}
+            >
+              <Card>
+                <CollapsibleTrigger className="w-full">
+                  <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <Phone className="size-5" />
+                        Call Notes
+                      </CardTitle>
+                      {expandedSections.has("call-notes") ? (
+                        <ChevronDown className="size-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="size-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent>
+                    {callNotesLoading ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        Loading call notes…
+                      </div>
+                    ) : callNotes.trim() ? (
+                      <div
+                        className={CANDIDATE_DETAILS_LONG_TEXT_BLOCK_CLASS}
+                        aria-label="Call Notes"
+                      >
+                        {callNotes}
+                      </div>
+                    ) : (
+                      <p className="text-base italic text-muted-foreground text-center py-6">
+                        No call notes recorded
+                      </p>
+                    )}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          </section>
+
+          <section id={FINAL_REMARKS_SECTION_ID}>
+            <Collapsible
+              open={expandedSections.has("final-remarks")}
+              onOpenChange={() => toggleSection("final-remarks")}
+            >
+              <Card>
+                <CollapsibleTrigger className="w-full">
+                  <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <MessageSquare className="size-5" />
+                        Final Remarks
+                      </CardTitle>
+                      {expandedSections.has("final-remarks") ? (
+                        <ChevronDown className="size-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="size-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent>
+                    {(viewCandidate.finalRemarks ?? "").trim() ? (
+                      <div
+                        className={CANDIDATE_DETAILS_LONG_TEXT_BLOCK_CLASS}
+                        aria-label="Final Remarks"
+                      >
+                        {viewCandidate.finalRemarks}
+                      </div>
+                    ) : (
+                      <p className="text-base italic text-muted-foreground text-center py-6">
+                        No final remarks recorded
+                      </p>
+                    )}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          </section>
+
           {/* Candidate Metadata */}
           <div className="pt-4 border-t border-border">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-muted-foreground">
@@ -8152,7 +8198,6 @@ export function CandidateDetailsModal({
           </div>
 
           </>
-          )}
         </div>
       </DialogContent>
       

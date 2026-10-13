@@ -429,7 +429,7 @@ export function CertificationsPageClient() {
         <CertificationCreationDialog
           mode="edit"
           certificationData={certificationToEdit}
-          showVerification={true}
+          showVerification={false} /* VERIFICATION_UI_DISABLED */
           onSubmit={handleCertificationSubmit}
           issuers={issuers}
           issuersLoading={issuersLoading}

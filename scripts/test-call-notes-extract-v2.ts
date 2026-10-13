@@ -77,6 +77,7 @@ const baseForm: CandidateFormData = {
   personalityType: "",
   achievements: [],
   competitions: [],
+  callNotes: "",
   finalRemarks: "",
   mentors: [],
 }

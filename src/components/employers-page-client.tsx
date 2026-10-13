@@ -716,7 +716,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
         <EmployerCreationDialog
           mode="edit"
           employerData={employerToEdit}
-          showVerification={true}
+          showVerification={false} /* VERIFICATION_UI_DISABLED */
           onSubmit={handleEmployerSubmit}
           open={editDialogOpen}
           onOpenChange={(open) => {

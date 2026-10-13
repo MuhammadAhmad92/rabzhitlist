@@ -459,7 +459,7 @@ export function UniversitiesPageClient() {
         <UniversityCreationDialog
           mode="edit"
           universityData={universityToEdit}
-          showVerification={true}
+          showVerification={false} /* VERIFICATION_UI_DISABLED */
           onSubmit={handleUniversitySubmit}
           open={editDialogOpen}
           onOpenChange={(open) => {

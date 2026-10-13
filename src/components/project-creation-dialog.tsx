@@ -48,6 +48,7 @@ import {
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { toast } from "sonner"
+import { VERIFICATION_UI_ENABLED } from "@/lib/config/verification-ui-enabled"
 import { Loader2, Plus, Check, ChevronsUpDown, ShieldCheck, ChevronDown, ChevronRight, X } from "lucide-react"
 import { CalendarIcon } from "lucide-react"
 import {
@@ -255,7 +256,7 @@ export function ProjectCreationDialog({
   children,
   mode = "create",
   projectData,
-  showVerification = true,
+  showVerification: showVerificationProp = true,
   onSubmit,
   onOpenChange,
   open: controlledOpen,
@@ -267,6 +268,7 @@ export function ProjectCreationDialog({
   onCreateTechStack,
   onCreateClientLocation,
 }: ProjectCreationDialogProps) {
+  const showVerification = VERIFICATION_UI_ENABLED && showVerificationProp
   const [internalOpen, setInternalOpen] = useState(false)
   const [fetchedDomainOptions, setFetchedDomainOptions] = useState<{
     verticalDomains: MultiSelectOption[]
@@ -936,34 +938,16 @@ export function ProjectCreationDialog({
   }
 
   // Verification checkbox component
-  const VerificationCheckbox = ({ 
-    fieldName, 
-    label 
-  }: { 
+  const VerificationCheckbox = ({
+    fieldName: _fieldName,
+    label: _label,
+  }: {
     fieldName: string
-    label?: string 
+    label?: string
   }) => {
     if (!showVerification) return null
-    
-    const isChecked = verifiedFields.has(fieldName)
-    const isModified = modifiedFields.has(fieldName)
-    
-    return (
-      <div className="flex items-center gap-2 mt-1">
-        <Checkbox
-          id={`verify-${fieldName}`}
-          checked={isChecked}
-          onCheckedChange={(checked) => handleVerificationToggle(fieldName, checked === true)}
-          className="h-4 w-4"
-        />
-        <Label 
-          htmlFor={`verify-${fieldName}`} 
-          className={`text-xs cursor-pointer ${isChecked ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'}`}
-        >
-          {isChecked ? '✓ Verified' : label || 'Mark as verified'}
-        </Label>
-      </div>
-    )
+    /* VERIFICATION_UI_DISABLED — VerificationCheckbox */
+    return null
   }
 
   const toggleSection = (section: string) => {
@@ -1101,25 +1085,7 @@ export function ProjectCreationDialog({
               </DialogTitle>
             </div>
             
-            {/* Verification Progress Bar */}
-            {showVerification && (
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Verification Progress</span>
-                  <Badge variant={verificationProgress === 100 ? 'default' : 'secondary'}>
-                    {verificationProgress}% Complete ({verifiedFields.size}/{PROJECT_VERIFICATION_FIELDS.length} fields)
-                  </Badge>
-                </div>
-                <Progress value={verificationProgress} className="h-2" />
-                <div className="flex gap-4 text-xs text-muted-foreground">
-                  <span>{verifiedFields.size} verified</span>
-                  <span>{PROJECT_VERIFICATION_FIELDS.length - verifiedFields.size} remaining</span>
-                  {modifiedFields.size > 0 && (
-                    <span className="text-blue-600">{modifiedFields.size} modified</span>
-                  )}
-                </div>
-              </div>
-            )}
+            {/* VERIFICATION_UI_DISABLED — verification progress bar */}
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto px-6 py-6">

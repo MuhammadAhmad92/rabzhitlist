@@ -59,6 +59,7 @@ import { cn } from "@/lib/utils"
 import { employerNameFieldErrorFromApi } from "@/lib/utils/api-error-message"
 import { mergeEmployerFormCreatePrefill } from "@/lib/utils/call-notes-extract-create-prefill"
 import { toast } from "sonner"
+import { VERIFICATION_UI_ENABLED } from "@/lib/config/verification-ui-enabled"
 
 // Form data interfaces
 export interface EmployerLocationFormData {
@@ -289,7 +290,7 @@ export function EmployerCreationDialog({
   children,
   mode = "create",
   employerData,
-  showVerification = true,
+  showVerification: showVerificationProp = true,
   onSubmit,
   onSuccess,
   onOpenChange,
@@ -304,6 +305,7 @@ export function EmployerCreationDialog({
   onCreateBenefit,
   onCreateCountry,
 }: EmployerCreationDialogProps) {
+  const showVerification = VERIFICATION_UI_ENABLED && showVerificationProp
   const [internalOpen, setInternalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState<EmployerFormData>(initialFormData)
@@ -862,54 +864,18 @@ export function EmployerCreationDialog({
   }
 
   // Verification checkbox component
-  const VerificationCheckbox = ({ 
-    fieldName, 
-    label,
-    inline = false
-  }: { 
+  const VerificationCheckbox = ({
+    fieldName: _fieldName,
+    label: _label,
+    inline: _inline = false,
+  }: {
     fieldName: string
     label?: string
-    inline?: boolean // If true, display alongside label (for special cases like Headquarters)
+    inline?: boolean
   }) => {
     if (!showVerification) return null
-    
-    const isChecked = verifiedFields.has(fieldName)
-    
-    if (inline) {
-      return (
-        <div className="flex items-center gap-1.5 ml-2">
-          <Checkbox
-            id={`verify-${fieldName}`}
-            checked={isChecked}
-            onCheckedChange={(checked) => handleVerificationToggle(fieldName, checked === true)}
-            className="h-4 w-4"
-          />
-          <Label 
-            htmlFor={`verify-${fieldName}`} 
-            className={`text-xs cursor-pointer ${isChecked ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'}`}
-          >
-            {isChecked ? '✓ Verified' : label || 'Mark as verified'}
-          </Label>
-        </div>
-      )
-    }
-    
-    return (
-      <div className="flex items-center gap-2 mt-1">
-        <Checkbox
-          id={`verify-${fieldName}`}
-          checked={isChecked}
-          onCheckedChange={(checked) => handleVerificationToggle(fieldName, checked === true)}
-          className="cursor-pointer"
-        />
-        <Label 
-          htmlFor={`verify-${fieldName}`}
-          className={`text-xs cursor-pointer ${isChecked ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'}`}
-        >
-          {isChecked ? '✓ Verified' : label || 'Mark as verified'}
-        </Label>
-      </div>
-    )
+    /* VERIFICATION_UI_DISABLED — VerificationCheckbox body preserved above in git history */
+    return null
   }
 
   const toggleSection = (section: string) => {
@@ -1033,25 +999,7 @@ export function EmployerCreationDialog({
               </DialogTitle>
             </div>
             
-            {/* Verification Progress Bar */}
-            {showVerification && (
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Verification Progress</span>
-                  <Badge variant={verificationProgress === 100 ? 'default' : 'secondary'}>
-                    {verificationProgress}% Complete ({verifiedFields.size} fields)
-                  </Badge>
-                </div>
-                <Progress value={verificationProgress} className="h-2" />
-                <div className="flex gap-4 text-xs text-muted-foreground">
-                  <span>{verifiedFields.size} verified</span>
-                  <span>{getSectionFieldNames('basic-info').length + getSectionFieldNames('locations').length - verifiedFields.size} remaining</span>
-                  {modifiedFields.size > 0 && (
-                    <span className="text-blue-600">{modifiedFields.size} modified</span>
-                  )}
-                </div>
-              </div>
-            )}
+            {/* VERIFICATION_UI_DISABLED — verification progress bar (see VERIFICATION_UI_ENABLED) */}
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto px-6 py-6">

@@ -5,6 +5,16 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   X,
   Users,
   Award,
@@ -55,13 +65,19 @@ import { mergeDegreeIntoCatalog } from "@/lib/utils/degree-lookup"
 import { mergeMajorIntoCatalog } from "@/lib/utils/major-lookup"
 import {
   fetchCandidatesPage,
-  createCandidate,
   candidateFormDataToCreateDto,
+  createCandidate,
   prepareCandidateCreateLookups,
   candidateListItemDtoToCandidate,
   syncModulesForCreatedCandidate,
 } from "@/lib/services/candidates-api"
 import { uploadCandidateResume } from "@/lib/services/candidate-resume-api"
+import { isMeaningfulFormChange } from "@/lib/candidate/candidate-draft-payload"
+import {
+  clearCandidateDraftLocal,
+  readCandidateDraftLocal,
+  type CandidateDraftLocalPayload,
+} from "@/lib/utils/candidate-draft-local-storage"
 import { syncCandidateMentors } from "@/lib/services/mentors-api"
 import type {
   CandidateSubmitOptions,
@@ -284,7 +300,20 @@ export function CandidatesPageClient() {
   const [createCandidateOpen, setCreateCandidateOpen] = useState(false)
   const [createCandidatePrefill, setCreateCandidatePrefill] = useState<Partial<CandidateFormData> | null>(null)
   const [createCandidatePrefillResume, setCreateCandidatePrefillResume] = useState<File | null>(null)
-  const [pendingCreateCallNotes, setPendingCreateCallNotes] = useState<string | null>(null)
+  const [draftFormBootstrap, setDraftFormBootstrap] = useState<CandidateFormData | null>(null)
+  const [localDraftChoiceOpen, setLocalDraftChoiceOpen] = useState(false)
+  const [pendingLocalDraft, setPendingLocalDraft] = useState<CandidateDraftLocalPayload | null>(
+    null,
+  )
+
+  const draftUserStorageKey = useMemo(
+    () => String(authUser?.id ?? authUser?.email ?? "anonymous"),
+    [authUser?.email, authUser?.id],
+  )
+
+  const resetCreateDraftSession = useCallback(() => {
+    setDraftFormBootstrap(null)
+  }, [])
   const [draftColdCallerOpen, setDraftColdCallerOpen] = useState(false)
   const [draftColdCallerSession, setDraftColdCallerSession] = useState<{
     candidate: Candidate
@@ -303,7 +332,6 @@ export function CandidatesPageClient() {
       }
       return null
     })
-    setPendingCreateCallNotes(null)
     setDraftColdCallerOpen(false)
   }, [])
 
@@ -313,11 +341,48 @@ export function CandidatesPageClient() {
   }, [])
 
   const handleApplyResumeParse = useCallback((partial: Partial<CandidateFormData>, resumeFile: File | null) => {
-    setPendingCreateCallNotes(null)
+    resetCreateDraftSession()
     setCreateCandidatePrefill(partial)
     setCreateCandidatePrefillResume(resumeFile)
     setCreateCandidateOpen(true)
-  }, [])
+  }, [resetCreateDraftSession])
+
+  const handleOpenCreateCandidate = useCallback(() => {
+    setCreateCandidatePrefill(null)
+    setCreateCandidatePrefillResume(null)
+    const local = readCandidateDraftLocal(draftUserStorageKey)
+    const localMeaningful =
+      local != null && isMeaningfulFormChange(local.formSnapshot)
+
+    if (localMeaningful) {
+      setPendingLocalDraft(local)
+      setLocalDraftChoiceOpen(true)
+      return
+    }
+
+    resetCreateDraftSession()
+    setCreateCandidateOpen(true)
+  }, [draftUserStorageKey, resetCreateDraftSession])
+
+  const handleContinueLocalDraft = useCallback(() => {
+    if (!pendingLocalDraft) return
+    setLocalDraftChoiceOpen(false)
+    setCreateCandidatePrefill(null)
+    setCreateCandidatePrefillResume(null)
+    setDraftFormBootstrap(pendingLocalDraft.formSnapshot)
+    setPendingLocalDraft(null)
+    setCreateCandidateOpen(true)
+  }, [pendingLocalDraft])
+
+  const handleStartNewLocalDraft = useCallback(() => {
+    clearCandidateDraftLocal(draftUserStorageKey)
+    setLocalDraftChoiceOpen(false)
+    setPendingLocalDraft(null)
+    resetCreateDraftSession()
+    setCreateCandidatePrefill(null)
+    setCreateCandidatePrefillResume(null)
+    setCreateCandidateOpen(true)
+  }, [draftUserStorageKey, resetCreateDraftSession])
 
   const handleOpenColdCallerFromParse = useCallback(
     (partial: Partial<CandidateFormData>, resumeFile: File | null) => {
@@ -341,14 +406,17 @@ export function CandidatesPageClient() {
   const handleDraftApplyToCreate = useCallback(
     (callNotes: string) => {
       if (!draftColdCallerSession) return
+      resetCreateDraftSession()
       clearCallNotesDraft(draftColdCallerSession.candidate.id)
-      setCreateCandidatePrefill(draftColdCallerSession.formSnapshot)
+      setCreateCandidatePrefill({
+        ...draftColdCallerSession.formSnapshot,
+        callNotes: callNotes.trim(),
+      })
       setCreateCandidatePrefillResume(draftColdCallerSession.resumeFile)
-      setPendingCreateCallNotes(callNotes.trim() ? callNotes : null)
       setDraftColdCallerOpen(false)
       setCreateCandidateOpen(true)
     },
-    [draftColdCallerSession],
+    [draftColdCallerSession, resetCreateDraftSession],
   )
 
   const handleDraftExtractApplyComplete = useCallback(
@@ -1106,10 +1174,8 @@ export function CandidatesPageClient() {
     const resumeFile = options?.resumeFile ?? null
     const callNotes =
       options?.callNotes != null && options.callNotes.trim().length > 0
-        ? options.callNotes
-        : pendingCreateCallNotes != null && pendingCreateCallNotes.trim().length > 0
-          ? pendingCreateCallNotes
-          : null
+        ? options.callNotes.trim()
+        : null
 
     try {
       const preparedLookups = await prepareCandidateCreateLookups(data, candidateLookups)
@@ -1136,16 +1202,17 @@ export function CandidatesPageClient() {
       }
 
       // Create succeeded (notes already on candidate if sent). Drop draft session.
-      if (draftColdCallerSession || pendingCreateCallNotes != null) {
-        if (draftColdCallerSession?.localResumeUrl) {
+      if (draftColdCallerSession) {
+        if (draftColdCallerSession.localResumeUrl) {
           URL.revokeObjectURL(draftColdCallerSession.localResumeUrl)
         }
-        if (draftColdCallerSession?.candidate.id) {
+        if (draftColdCallerSession.candidate.id) {
           clearCallNotesDraft(draftColdCallerSession.candidate.id)
         }
         setDraftColdCallerSession(null)
-        setPendingCreateCallNotes(null)
       }
+      resetCreateDraftSession()
+      clearCandidateDraftLocal(draftUserStorageKey)
 
       if (!resumeFile) {
         toast.success("Candidate created successfully.")
@@ -1363,17 +1430,49 @@ export function CandidatesPageClient() {
           />
           <Button
             type="button"
-            onClick={() => {
-              setCreateCandidatePrefill(null)
-              setCreateCandidatePrefillResume(null)
-              setPendingCreateCallNotes(null)
-              setCreateCandidateOpen(true)
-            }}
+            onClick={handleOpenCreateCandidate}
             className="transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md cursor-pointer"
           >
             <Plus className="h-4 w-4 mr-2" />
             Create Candidate
           </Button>
+          <AlertDialog open={localDraftChoiceOpen} onOpenChange={setLocalDraftChoiceOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Continue draft?</AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <p>You have a saved create-candidate draft on this device.</p>
+                    {pendingLocalDraft?.savedAt ? (
+                      <p>
+                        Last saved{" "}
+                        {new Date(pendingLocalDraft.savedAt).toLocaleString()}
+                      </p>
+                    ) : null}
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setPendingLocalDraft(null)
+                  }}
+                >
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  className="cursor-pointer bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  onClick={handleStartNewLocalDraft}
+                >
+                  Start new
+                </AlertDialogAction>
+                <AlertDialogAction className="cursor-pointer" onClick={handleContinueLocalDraft}>
+                  Continue draft
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <CandidateCreationDialog
             open={createCandidateOpen}
             onOpenChange={(o) => {
@@ -1382,11 +1481,16 @@ export function CandidatesPageClient() {
                 setCreateCandidatePrefill(null)
                 setCreateCandidatePrefillResume(null)
                 // Silent discard of draft Cold Caller session when Create is cancelled.
-                if (draftColdCallerSession || pendingCreateCallNotes != null) {
+                if (draftColdCallerSession) {
                   clearDraftColdCallerSession()
                 }
               }
             }}
+            enableLocalDraftSync
+            draftFormBootstrap={draftFormBootstrap}
+            onDraftFormBootstrapConsumed={() => setDraftFormBootstrap(null)}
+            draftUserStorageKey={draftUserStorageKey}
+            onDraftSessionEnd={resetCreateDraftSession}
             createPrefill={createCandidatePrefill}
             createPrefillResumeFile={createCandidatePrefillResume}
             onCreatePrefillConsumed={handleCreatePrefillConsumed}
