@@ -3174,7 +3174,7 @@ export function ProjectDetailDialog({
                 getFieldVerification={getFieldVerification}
                 placeholder="Select project type..."
               />
-            </div>
+              </div>
 
             <div className="min-w-0 space-y-1">
               <InlineEditDateField
@@ -3283,23 +3283,23 @@ export function ProjectDetailDialog({
               onCreateNew={onCreateTechStack ? (name) => onCreateTechStack(name) : undefined}
             />
 
-            <InlineEditField
-              label="Download Count"
-              value={localProject.downloadCount ? localProject.downloadCount.toString() : ""}
-              fieldName="downloadCount"
-              fieldType="number"
-              validation={(value) => {
-                if (!value.trim()) return null // Optional field
-                const num = parseInt(value)
-                if (isNaN(num) || num < 0) {
-                  return "Download count must be a positive number"
-                }
-                return null
-              }}
-              onSave={handleFieldSave}
-              placeholder="e.g., 100000"
-              getFieldVerification={getFieldVerification}
-            />
+              <InlineEditField
+                label="Download Count"
+                value={localProject.downloadCount ? localProject.downloadCount.toString() : ""}
+                fieldName="downloadCount"
+                fieldType="number"
+                validation={(value) => {
+                  if (!value.trim()) return null // Optional field
+                  const num = parseInt(value)
+                  if (isNaN(num) || num < 0) {
+                    return "Download count must be a positive number"
+                  }
+                  return null
+                }}
+                onSave={handleFieldSave}
+                placeholder="e.g., 100000"
+                getFieldVerification={getFieldVerification}
+              />
             <EntityAuditFields
               createdBy={localProject.createdBy}
               updatedBy={localProject.updatedBy}
@@ -3338,18 +3338,18 @@ export function ProjectDetailDialog({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InlineEditableMultiSelect
-                  label="Technical Domains"
-                  value={localProject.technicalDomains || []}
-                  fieldName="technicalDomains"
+              <InlineEditableMultiSelect
+                label="Technical Domains"
+                value={localProject.technicalDomains || []}
+                fieldName="technicalDomains"
                   options={technicalDomainOptionsResolved}
-                  onSave={handleMultiSelectFieldSave}
-                  getFieldVerification={getFieldVerification}
-                  placeholder="Select technical domains..."
-                  searchPlaceholder="Search technical domains..."
-                  badgeColorClass="bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200"
-                  maxDisplay={4}
-                />
+                onSave={handleMultiSelectFieldSave}
+                getFieldVerification={getFieldVerification}
+                placeholder="Select technical domains..."
+                searchPlaceholder="Search technical domains..."
+                badgeColorClass="bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200"
+                maxDisplay={4}
+              />
 
                 {/*
                   Technical Aspect Types is a server-derived, read-only summary of the
@@ -3397,16 +3397,16 @@ export function ProjectDetailDialog({
             placeholder="Provide a detailed description of the project, its goals, and key features..."
           />
 
-          <InlineEditField
+            <InlineEditField
             label="Latest Update"
             value={localProject.latestUpdate || ""}
             fieldName="latestUpdate"
-            fieldType="text"
+              fieldType="text"
             validation={validateLatestUpdate}
-            onSave={handleFieldSave}
+              onSave={handleFieldSave}
             placeholder="Recent project updates or comments"
-            getFieldVerification={getFieldVerification}
-          />
+              getFieldVerification={getFieldVerification}
+            />
 
           <div ref={modulesSectionRef} className="scroll-mt-4">
             <ProjectModulesSection modules={localProject.modules} />

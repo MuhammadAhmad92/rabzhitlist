@@ -56,6 +56,7 @@ import {
   GraduationCap,
   Trophy,
   MessageSquare,
+  Phone,
   FolderOpen,
   Check,
   ChevronsUpDown,
@@ -139,9 +140,10 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
-  CANDIDATE_FORM_DIALOG_SHELL_CLASS,
+  CANDIDATE_CREATION_DIALOG_SHELL_CLASS,
 } from "@/lib/utils/candidate-form-dialog-layout"
 import { toast } from "sonner"
+import { VERIFICATION_UI_ENABLED } from "@/lib/config/verification-ui-enabled"
 import {
   getWorkExperienceDateFieldErrors,
   getWorkExperienceDateSuggestion,
@@ -151,6 +153,7 @@ import {
   showCandidateCreationValidationToast,
   type CandidateCreationValidationErrors,
 } from "@/lib/utils/candidate-creation-validation-toast"
+import { useCandidateDraftSync } from "@/hooks/useCandidateDraftSync"
 import type { LookupItem } from "@/lib/services/lookups-api"
 import type { CertificationIssuer } from "@/lib/types/certification"
 import type {
@@ -160,6 +163,10 @@ import type {
   ResumeUploadStage,
 } from "@/lib/contracts/candidate-resume"
 import { uploadCandidateResume } from "@/lib/services/candidate-resume-api"
+import {
+  fetchCandidateCallNotes,
+  patchCandidateCallNotes,
+} from "@/lib/services/candidate-call-notes-api"
 import { ResumeFileInput } from "@/components/candidates/resume-file-input"
 import { ResumeUploadStatus } from "@/components/candidates/resume-upload-status"
 import { ResumeOpenButton } from "@/components/candidates/resume-open-button"
@@ -337,6 +344,7 @@ export interface CandidateFormData {
   achievements: Achievement[]
   // Competitions - DEPRECATED: Use achievements instead. Kept for backward compatibility
   competitions: Competition[]
+  callNotes: string
   finalRemarks: string
   mentors: CandidateMentorFormRow[]
 }
@@ -945,6 +953,15 @@ interface CandidateCreationDialogProps {
   nestedProjectCreation?: NestedProjectCreationProps
   /** Recruiter: omit salary / WE compensation inputs (POST body stripped in API layer). */
   hideCompensationFields?: boolean
+  /** Persist create form to localStorage (see CANDIDATE_DRAFT_* docs). */
+  enableLocalDraftSync?: boolean
+  /** Resume a local draft into create mode (once per open). */
+  draftFormBootstrap?: CandidateFormData | null
+  onDraftFormBootstrapConsumed?: () => void
+  /** localStorage key segment (e.g. user id). */
+  draftUserStorageKey?: string
+  /** Clear draft session when dialog fully closes after discard or success. */
+  onDraftSessionEnd?: () => void
 }
 
 export type { EmployerComboboxNestedCreationProps as NestedEmployerCreationProps }
@@ -1075,6 +1092,8 @@ const createEmptyEducation = (): CandidateEducation => ({
   isCheetah: false,
 })
 
+const CALL_NOTES_PLACEHOLDER = "Enter everything discussed during the call…"
+
 const initialFormData: CandidateFormData = {
   name: "",
   postingTitle: "",
@@ -1096,6 +1115,7 @@ const initialFormData: CandidateFormData = {
   personalityType: "",
     achievements: [],
     competitions: [],
+  callNotes: "",
   finalRemarks: "",
   mentors: [],
 }
@@ -1254,6 +1274,7 @@ export const candidateToFormData = (candidate: Candidate): CandidateFormData => 
       year: comp.year,
       url: comp.url || "",
     })) || [],
+    callNotes: "",
     finalRemarks: candidate.finalRemarks ?? "",
     mentors: (candidate.mentors ?? []).map((link) => ({
       id: link.id,
@@ -1267,6 +1288,16 @@ export const candidateToFormData = (candidate: Candidate): CandidateFormData => 
       reasoning: link.reasoning ?? "",
     })),
   }
+}
+
+function LocalDraftSavedLine({ savedAt }: { savedAt: string | null }) {
+  if (!savedAt) return null
+  const label = new Date(savedAt).toLocaleString()
+  return (
+    <p className="text-xs text-muted-foreground max-w-md" role="status">
+      Draft saved on this device · {label}
+    </p>
+  )
 }
 
 export function CandidateCreationDialog({
@@ -1298,9 +1329,14 @@ export function CandidateCreationDialog({
   nestedEmployerCreation,
   nestedProjectCreation,
   hideCompensationFields = false,
+  enableLocalDraftSync = false,
+  draftFormBootstrap = null,
+  onDraftFormBootstrapConsumed,
+  draftUserStorageKey = "anonymous",
+  onDraftSessionEnd,
 }: CandidateCreationDialogProps) {
-  // Always show verification by default (both create and edit modes), allow override via prop
-  const showVerification = showVerificationProp ?? true
+  const draftSyncEnabled = enableLocalDraftSync && mode === "create"
+  const showVerification = VERIFICATION_UI_ENABLED && (showVerificationProp ?? true)
   const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen
   
@@ -1314,7 +1350,10 @@ export function CandidateCreationDialog({
   const appliedPrefillSessionRef = useRef(false)
   /** After Call Notes extract bootstrap is applied in edit mode, keep form when parent clears `editFormBootstrap`. */
   const appliedEditBootstrapSessionRef = useRef(false)
+  const appliedDraftBootstrapSessionRef = useRef(false)
   const createDialogPrevOpenRef = useRef(false)
+  const onDraftFormBootstrapConsumedRef = useRef(onDraftFormBootstrapConsumed)
+  onDraftFormBootstrapConsumedRef.current = onDraftFormBootstrapConsumed
   const onCreatePrefillConsumedRef = useRef(onCreatePrefillConsumed)
   onCreatePrefillConsumedRef.current = onCreatePrefillConsumed
   const onEditFormBootstrapConsumedRef = useRef(onEditFormBootstrapConsumed)
@@ -1330,6 +1369,12 @@ export function CandidateCreationDialog({
       return candidateToFormData(candidateData)
     }
     return initialFormData
+  })
+
+  const draftSync = useCandidateDraftSync({
+    enabled: draftSyncEnabled && open,
+    userStorageKey: draftUserStorageKey,
+    formData,
   })
 
   // Resume file state
@@ -1354,16 +1399,22 @@ export function CandidateCreationDialog({
     { id: "certifications", sectionId: "certifications", label: "Certifications", shortLabel: "Certs" },
     { id: "competitions", sectionId: "competitions", label: "Achievements", shortLabel: "Achievements" },
     { id: "mentors", sectionId: "mentors", label: "Mentors", shortLabel: "Mentors" },
+    { id: "call-notes", sectionId: "call-notes", label: "Call Notes", shortLabel: "Call Notes" },
     { id: "final-remarks", sectionId: "final-remarks", label: "Final Remarks", shortLabel: "Final Remarks" },
   ], [])
 
+  const [basicInfoOpen, setBasicInfoOpen] = useState(true)
   const [workExperienceOpen, setWorkExperienceOpen] = useState(true)
   const [techStacksOpen, setTechStacksOpen] = useState(true)
   const [certificationsOpen, setCertificationsOpen] = useState(true)
   const [competitionsOpen, setCompetitionsOpen] = useState(true)
   const [mentorsOpen, setMentorsOpen] = useState(true)
+  const [callNotesOpen, setCallNotesOpen] = useState(true)
   const [finalRemarksOpen, setFinalRemarksOpen] = useState(true)
   const [educationOpen, setEducationOpen] = useState(true)
+  const [callNotesLoading, setCallNotesLoading] = useState(false)
+  const initialCallNotesRef = useRef("")
+  const callNotesFetchCandidateIdRef = useRef<number | null>(null)
   
   const employerCreateLookups: BuildCreateEmployerDtoOptions = useMemo(
     () => ({
@@ -1506,6 +1557,10 @@ export function CandidateCreationDialog({
            verifiedFields.size > 0
   }, [formData, verifiedFields])
 
+  const shouldWarnOnClose = draftSyncEnabled
+    ? draftSync.hasChangesSinceFlush
+    : hasUnsavedChanges
+
   const workExperienceDateIssues = useMemo(() => {
     const issues: Record<
       number,
@@ -1612,6 +1667,8 @@ export function CandidateCreationDialog({
       })
     })
 
+    total += 1
+    if (verifiedFields.has("callNotes")) verified++
     total += 1
     if (verifiedFields.has("finalRemarks")) verified++
     
@@ -1805,6 +1862,16 @@ export function CandidateCreationDialog({
     }
   }, [showVerification, verifiedFields, formData.mentors])
 
+  const callNotesProgress = useMemo(() => {
+    if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
+    const verified = verifiedFields.has("callNotes") ? 1 : 0
+    return {
+      percentage: verified > 0 ? 100 : 0,
+      verified,
+      total: 1,
+    }
+  }, [showVerification, verifiedFields])
+
   const finalRemarksProgress = useMemo(() => {
     if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
     const verified = verifiedFields.has("finalRemarks") ? 1 : 0
@@ -1841,6 +1908,10 @@ export function CandidateCreationDialog({
         return certificationsProgress
       case 'competitions':
         return achievementsProgress
+      case 'mentors':
+        return mentorsProgress
+      case 'call-notes':
+        return callNotesProgress
       case 'final-remarks':
         return finalRemarksProgress
       default:
@@ -1928,7 +1999,10 @@ export function CandidateCreationDialog({
     
     if (sectionKey) {
       // Expand the section if it's collapsed
-      if (sectionKey === "work-experience" && !workExperienceOpen) {
+      if (sectionKey === "basic" && !basicInfoOpen) {
+        setBasicInfoOpen(true)
+        needsExpansion = true
+      } else if (sectionKey === "work-experience" && !workExperienceOpen) {
         setWorkExperienceOpen(true)
         needsExpansion = true
       } else if (sectionKey === "tech-stacks" && !techStacksOpen) {
@@ -1943,6 +2017,9 @@ export function CandidateCreationDialog({
       } else if (sectionKey === "mentors" && !mentorsOpen) {
         setMentorsOpen(true)
         needsExpansion = true
+      } else if (sectionKey === "call-notes" && !callNotesOpen) {
+        setCallNotesOpen(true)
+        needsExpansion = true
       } else if (sectionKey === "final-remarks" && !finalRemarksOpen) {
         setFinalRemarksOpen(true)
         needsExpansion = true
@@ -1954,7 +2031,7 @@ export function CandidateCreationDialog({
     setTimeout(() => {
       scrollToElement(element, container, yOffset, sectionId)
     }, delay)
-  }, [sections, workExperienceOpen, techStacksOpen, educationOpen, certificationsOpen, competitionsOpen, mentorsOpen, finalRemarksOpen, scrollToElement])
+  }, [sections, basicInfoOpen, workExperienceOpen, techStacksOpen, educationOpen, certificationsOpen, competitionsOpen, mentorsOpen, callNotesOpen, finalRemarksOpen, scrollToElement])
 
   // Handle tab change
   const handleTabChange = useCallback((value: string) => {
@@ -1977,6 +2054,40 @@ export function CandidateCreationDialog({
 
     return () => cancelAnimationFrame(frame)
   }, [open])
+
+  useEffect(() => {
+    if (!open) {
+      initialCallNotesRef.current = ""
+      callNotesFetchCandidateIdRef.current = null
+      return
+    }
+    if (mode !== "edit" || !candidateData) return
+
+    const candidateIdNum = Number(candidateData.id)
+    if (!Number.isFinite(candidateIdNum)) return
+
+    const controller = new AbortController()
+    setCallNotesLoading(true)
+
+    fetchCandidateCallNotes(candidateIdNum, controller.signal)
+      .then((dto) => {
+        const notes = dto.call_notes ?? ""
+        initialCallNotesRef.current = notes
+        callNotesFetchCandidateIdRef.current = candidateIdNum
+        setFormData((prev) => ({ ...prev, callNotes: notes }))
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return
+        setFormData((prev) => ({ ...prev, callNotes: "" }))
+        initialCallNotesRef.current = ""
+        toast.error(error instanceof Error ? error.message : "Failed to load call notes.")
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCallNotesLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [open, mode, candidateData?.id])
 
   useScrollSpySection(scrollContainerRef, {
     enabled: open,
@@ -2105,6 +2216,10 @@ export function CandidateCreationDialog({
         })
         break
 
+      case 'call-notes':
+        fields.push('callNotes')
+        break
+
       case 'final-remarks':
         fields.push('finalRemarks')
         break
@@ -2148,11 +2263,14 @@ export function CandidateCreationDialog({
   
   // Handle dialog close with unsaved changes check
   const setOpen = (newOpen: boolean) => {
-    if (!newOpen && hasUnsavedChanges) {
+    if (!newOpen && shouldWarnOnClose) {
       // Show warning dialog
       pendingCloseRef.current = true
       setShowUnsavedWarning(true)
       return
+    }
+    if (!newOpen && draftSyncEnabled) {
+      draftSync.flushLocal()
     }
     
     if (controlledOpen === undefined) {
@@ -2166,6 +2284,22 @@ export function CandidateCreationDialog({
     setShowUnsavedWarning(false)
     pendingCloseRef.current = false
     resetForm()
+    if (draftSyncEnabled) {
+      draftSync.clearDraftSession()
+      onDraftSessionEnd?.()
+    }
+    if (controlledOpen === undefined) {
+      setInternalOpen(false)
+    }
+    onOpenChange?.(false)
+  }
+
+  const handleCloseWithLocalFlush = () => {
+    if (draftSyncEnabled) {
+      draftSync.flushLocal()
+    }
+    setShowUnsavedWarning(false)
+    pendingCloseRef.current = false
     if (controlledOpen === undefined) {
       setInternalOpen(false)
     }
@@ -2192,8 +2326,7 @@ export function CandidateCreationDialog({
       return 'Saving...'
     }
     if (mode === 'create') return 'Create Candidate'
-    // In edit mode, always show "Save & Verify" since verification is built-in
-    return 'Save & Verify'
+    return VERIFICATION_UI_ENABLED ? 'Save & Verify' : 'Save'
   }
 
   const handleInputChange = (field: keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'achievements' | 'competitions' | 'mentors'>, value: string) => {
@@ -2997,12 +3130,26 @@ export function CandidateCreationDialog({
         verifiedFields: new Set(verifiedFields),
         modifiedFields: new Set(modifiedFields),
       }
+      const trimmedCallNotes = formData.callNotes.trim()
       const result = await onSubmit?.(formData, {
         verificationState,
         resumeFile,
         onResumeStageChange:
           mode === "create" ? setResumeUploadStage : undefined,
+        callNotes: mode === "create" ? trimmedCallNotes || null : undefined,
       })
+
+      if (
+        mode === "edit" &&
+        candidateData &&
+        formData.callNotes !== initialCallNotesRef.current
+      ) {
+        const editId = Number(candidateData.id)
+        if (Number.isFinite(editId)) {
+          await patchCandidateCallNotes(editId, formData.callNotes)
+          initialCallNotesRef.current = formData.callNotes
+        }
+      }
 
       if (result?.status === "resume-upload-failed") {
         setPendingResumeRetry({
@@ -3016,6 +3163,10 @@ export function CandidateCreationDialog({
 
       resetForm()
       setPendingResumeRetry(null)
+      if (draftSyncEnabled) {
+        draftSync.clearDraftSession()
+        onDraftSessionEnd?.()
+      }
       if (controlledOpen === undefined) {
         setInternalOpen(false)
       }
@@ -3075,9 +3226,12 @@ export function CandidateCreationDialog({
   }
 
   const handleCancel = () => {
-    if (hasUnsavedChanges) {
+    if (shouldWarnOnClose) {
       setShowUnsavedWarning(true)
       return
+    }
+    if (draftSyncEnabled) {
+      draftSync.flushLocal()
     }
     resetForm()
     if (controlledOpen === undefined) {
@@ -3086,11 +3240,20 @@ export function CandidateCreationDialog({
     onOpenChange?.(false)
   }
 
+  React.useEffect(() => {
+    if (!open || !draftSyncEnabled || mode !== "create") return
+    const frame = requestAnimationFrame(() => {
+      draftSync.resetBaselineFromCurrentForm()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [open, draftSyncEnabled, mode, draftFormBootstrap, createPrefill, draftSync])
+
   // Update form data when candidateData changes (for edit mode) or create opens (with optional resume prefill)
   React.useEffect(() => {
     if (!open) {
       appliedPrefillSessionRef.current = false
       appliedEditBootstrapSessionRef.current = false
+      appliedDraftBootstrapSessionRef.current = false
       createDialogPrevOpenRef.current = false
       return
     }
@@ -3118,43 +3281,67 @@ export function CandidateCreationDialog({
       setResumeFile(null)
         setPendingResumeRetry(null)
         setResumeUploadError(null)
+      setBasicInfoOpen(true)
       setWorkExperienceOpen(true)
       setTechStacksOpen(true)
       setCertificationsOpen(true)
       setEducationOpen(true)
         setFinalRemarksOpen(true)
+        setMentorsOpen(true)
       }
       return
     }
 
     if (mode === "create") {
+      const hadDraftBootstrap = !!(
+        draftFormBootstrap && hasPrefillContent(draftFormBootstrap)
+      )
       const hadPrefill = !!(createPrefill && hasPrefillContent(createPrefill))
-      if (hadPrefill) {
+      if (hadDraftBootstrap) {
+        setFormData(draftFormBootstrap!)
+        initialFormDataRef.current = draftFormBootstrap!
+        appliedDraftBootstrapSessionRef.current = true
+        onDraftFormBootstrapConsumedRef.current?.()
+      } else if (hadPrefill) {
         const merged = mergeCandidatePrefill(initialFormData, createPrefill!)
         setFormData(merged)
         initialFormDataRef.current = merged
         appliedPrefillSessionRef.current = true
         onCreatePrefillConsumedRef.current?.()
-      } else if (justOpened && !appliedPrefillSessionRef.current) {
+      } else if (
+        justOpened &&
+        !appliedPrefillSessionRef.current &&
+        !appliedDraftBootstrapSessionRef.current
+      ) {
         setFormData(initialFormData)
         initialFormDataRef.current = initialFormData
       }
 
-      if (justOpened || hadPrefill) {
+      if (justOpened || hadPrefill || hadDraftBootstrap) {
         setErrors({})
         setVerifiedFields(new Set())
         setModifiedFields(new Set())
         setResumeFile(hadPrefill ? createPrefillResumeFile : null)
         setPendingResumeRetry(null)
         setResumeUploadError(null)
+        setBasicInfoOpen(true)
         setWorkExperienceOpen(true)
         setTechStacksOpen(true)
         setCertificationsOpen(true)
         setEducationOpen(true)
         setFinalRemarksOpen(true)
+        setMentorsOpen(true)
       }
     }
-  }, [mode, candidateData, open, createPrefill, createPrefillResumeFile, editFormBootstrap])
+  }, [
+    mode,
+    candidateData,
+    open,
+    createPrefill,
+    createPrefillResumeFile,
+    editFormBootstrap,
+    draftFormBootstrap,
+  ])
 
   const resetForm = () => {
     if (mode === "edit" && candidateData) {
@@ -3171,6 +3358,7 @@ export function CandidateCreationDialog({
     setResumeFile(null)
     setPendingResumeRetry(null)
     setResumeUploadError(null)
+    setBasicInfoOpen(false)
     setWorkExperienceOpen(false)
     setTechStacksOpen(false)
     setCertificationsOpen(false)
@@ -3182,9 +3370,8 @@ export function CandidateCreationDialog({
   // Verification checkbox component
   const VerificationCheckbox = ({ fieldPath, label }: { fieldPath: string; label?: string }) => {
     if (!showVerification) return null
-    
+    /* VERIFICATION_UI_DISABLED — per-field checkbox
     const isVerified = verifiedFields.has(fieldPath)
-    
     return (
       <div className="flex items-center gap-2 mt-1">
         <Checkbox
@@ -3193,7 +3380,7 @@ export function CandidateCreationDialog({
           onCheckedChange={() => toggleFieldVerification(fieldPath)}
           className="cursor-pointer"
         />
-        <Label 
+        <Label
           htmlFor={`verify-${fieldPath}`}
           className={`text-xs cursor-pointer ${isVerified ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'}`}
         >
@@ -3201,6 +3388,8 @@ export function CandidateCreationDialog({
         </Label>
       </div>
     )
+    */
+    return null
   }
 
   const isControlledOpen = controlledOpen !== undefined
@@ -3217,7 +3406,7 @@ export function CandidateCreationDialog({
           )}
         </DialogTrigger>
       )}
-      <DialogContent className={CANDIDATE_FORM_DIALOG_SHELL_CLASS}>
+      <DialogContent className={CANDIDATE_CREATION_DIALOG_SHELL_CLASS}>
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border space-y-3">
           <DialogTitle className="flex items-center gap-2">
             {mode === "edit" && <ShieldCheck className="h-5 w-5 text-primary" />}
@@ -3227,71 +3416,38 @@ export function CandidateCreationDialog({
             )}
           </DialogTitle>
           
-          {/* Verification Progress Bar - Always shown in edit mode */}
+          {/* VERIFICATION_UI_DISABLED — header progress bar
           {showVerification && (
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Verification Progress</span>
-                <Badge variant={verificationProgress.percentage === 100 ? 'default' : 'secondary'}>
-                  {verificationProgress.percentage}% Complete ({verificationProgress.verified}/{verificationProgress.total} fields)
-                </Badge>
-              </div>
-              <Progress value={verificationProgress.percentage} className="h-2" />
+              ...
             </div>
           )}
+          */}
         </DialogHeader>
 
-        {/* Sticky Section Navigation Tabs */}
-        {showVerification && (
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border shadow-sm">
-            <Tabs 
-              value={activeTab} 
-              onValueChange={handleTabChange}
-              className="w-full"
-            >
-              <TabsList className="h-12 w-full justify-start rounded-none border-0 bg-transparent p-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                {sections.map((section) => {
-                  const progress = getSectionProgress(section.sectionId)
-                  const isFullyVerified = progress.percentage === 100
-                  
-                  return (
-                    <TabsTrigger
-                      key={section.id}
-                      value={section.sectionId}
-                      className={cn(
-                        "px-4 py-2 text-sm font-medium rounded-t transition-colors whitespace-nowrap h-12 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none",
-                        "data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:hover:text-foreground",
-                        "border-b-2 border-transparent",
-                        "cursor-pointer flex items-center gap-2"
-                      )}
-                      aria-label={`Jump to ${section.label} section - ${progress.percentage}% verified (${progress.verified}/${progress.total})`}
-                    >
-                      <span className="hidden lg:inline">{section.label}</span>
-                      <span className="lg:hidden">{section.shortLabel}</span>
-                      
-                      {/* Verification Badge */}
-                      {progress.total > 0 && (
-                        <Badge 
-                          variant="default"
-                          className={cn(
-                            "text-xs px-1.5 py-0.5 font-medium shrink-0",
-                            getVerificationBadgeColor(progress.percentage)
-                          )}
-                        >
-                          {isFullyVerified ? (
-                            <CheckCircle className="w-3 h-3" />
-                          ) : (
-                            `${progress.percentage}%`
-                          )}
-                        </Badge>
-                      )}
-                    </TabsTrigger>
-                  )
-                })}
-              </TabsList>
-            </Tabs>
-          </div>
-        )}
+        {/* Sticky Section Navigation Tabs (navigation only; verification badges disabled) */}
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border shadow-sm">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+            <TabsList className="h-12 w-full justify-start rounded-none border-0 bg-transparent p-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              {sections.map((section) => (
+                <TabsTrigger
+                  key={section.id}
+                  value={section.sectionId}
+                  className={cn(
+                    "px-4 py-2 text-sm font-medium rounded-t transition-colors whitespace-nowrap h-12 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none",
+                    "data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:hover:text-foreground",
+                    "border-b-2 border-transparent",
+                    "cursor-pointer flex items-center gap-2",
+                  )}
+                  aria-label={`Jump to ${section.label} section`}
+                >
+                  <span className="hidden xl:inline">{section.label}</span>
+                  <span className="xl:hidden">{section.shortLabel}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 py-6">
           {/* Nested create dialogs (portaled) stay React children of this form — see .cursor/rules/candidate-nested-dialog-forms.mdc */}
@@ -3327,42 +3483,55 @@ export function CandidateCreationDialog({
               </CardContent>
             </Card>
           ) : null}
-          {/* Section 1: Basic Information */}
+          {/* Section 1: Basic Information (Collapsible) */}
           <div id="basic-info">
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center justify-between text-lg">
-                <div className="flex items-center gap-2">
-                  <User className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  Basic Information
-                  <SectionProgressBadge 
-                    percentage={basicInfoProgress.percentage}
-                    verified={basicInfoProgress.verified}
-                    total={basicInfoProgress.total}
-                  />
-                </div>
-                {showVerification && (
-                  <div 
-                    className="flex items-center gap-2" 
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Checkbox
-                      id="verify-all-basic-info"
-                      checked={isSectionFullyVerified('basic-info')}
-                      onCheckedChange={(checked) => handleVerifyAllSection('basic-info', !!checked)}
-                      aria-label="Verify all fields in Basic Information section"
+          <Collapsible open={basicInfoOpen} onOpenChange={setBasicInfoOpen}>
+            <div className="flex items-center gap-2">
+              <CollapsibleTrigger asChild className="flex-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <User className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <span className="text-lg font-medium">Basic Information</span>
+                    <SectionProgressBadge
+                      percentage={basicInfoProgress.percentage}
+                      verified={basicInfoProgress.verified}
+                      total={basicInfoProgress.total}
                     />
-                    <Label 
-                      htmlFor="verify-all-basic-info"
-                      className="text-sm text-muted-foreground cursor-pointer font-normal"
-                    >
-                      Verify All
-                    </Label>
                   </div>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${
+                      basicInfoOpen ? "transform rotate-180" : ""
+                    }`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              {showVerification && (
+                <div
+                  className="flex items-center gap-2 px-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    id="verify-all-basic-info"
+                    checked={isSectionFullyVerified("basic-info")}
+                    onCheckedChange={(checked) => handleVerifyAllSection("basic-info", !!checked)}
+                    aria-label="Verify all fields in Basic Information section"
+                  />
+                  <Label
+                    htmlFor="verify-all-basic-info"
+                    className="text-sm text-muted-foreground cursor-pointer font-normal whitespace-nowrap"
+                  >
+                    Verify All
+                  </Label>
+                </div>
+              )}
+            </div>
+            <CollapsibleContent className="space-y-4 mt-4">
+          <Card>
+            <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Name *</Label>
@@ -3666,6 +3835,8 @@ export function CandidateCreationDialog({
               </div>
             </CardContent>
           </Card>
+            </CollapsibleContent>
+          </Collapsible>
           </div>
           {/* Section 2: Work Experience (Collapsible) */}
           <div id="work-experience">
@@ -4295,33 +4466,26 @@ export function CandidateCreationDialog({
               )}
             </div>
             <CollapsibleContent className="space-y-4 mt-4">
-              <Card>
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-base">Technical Skills</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0 space-y-4">
-                  <div className="space-y-2">
-                    <MultiSelect
-                      items={techStackOptions}
-                      selected={formData.techStacks}
-                      onChange={(values) => {
-                        setFormData(prev => ({ ...prev, techStacks: values }))
-                        markFieldModified('techStacks')
-                      }}
-                      placeholder="Select technologies..."
-                      searchPlaceholder="Search technologies..."
-                      maxDisplay={4}
-                      disabled={techStacksLoading}
-                      creatable={!!onCreateTechStack}
-                      createLabel="Add Technology"
-                      onCreateNew={onCreateTechStack ? (name) => onCreateTechStack(name) : undefined}
-                      pinSelectedToTop
-                      remainingGroupHeading="All technologies"
-                    />
-                    <VerificationCheckbox fieldPath="techStacks" />
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="space-y-2">
+                <MultiSelect
+                  items={techStackOptions}
+                  selected={formData.techStacks}
+                  onChange={(values) => {
+                    setFormData(prev => ({ ...prev, techStacks: values }))
+                    markFieldModified('techStacks')
+                  }}
+                  placeholder="Select technologies..."
+                  searchPlaceholder="Search technologies..."
+                  maxDisplay={4}
+                  disabled={techStacksLoading}
+                  creatable={!!onCreateTechStack}
+                  createLabel="Add Technology"
+                  onCreateNew={onCreateTechStack ? (name) => onCreateTechStack(name) : undefined}
+                  pinSelectedToTop
+                  remainingGroupHeading="All technologies"
+                />
+                <VerificationCheckbox fieldPath="techStacks" />
+              </div>
             </CollapsibleContent>
           </Collapsible>
           </div>
@@ -5160,7 +5324,7 @@ export function CandidateCreationDialog({
                               />
                               <VerificationCheckbox fieldPath={`mentors.${index}.designation`} />
                             </div>
-                            <div className="space-y-2 md:col-span-2">
+                            <div className="space-y-2">
                               <EmployerCombobox
                                 id={`mentor-organization-${index}`}
                                 label="Organization *"
@@ -5197,13 +5361,13 @@ export function CandidateCreationDialog({
                                 {mentor.designation.trim() || "N/A"}
                               </p>
                             </div>
-                            <div className="space-y-1 md:col-span-2">
+                            <div className="space-y-1">
                               <p className="text-sm font-medium text-muted-foreground">Organization</p>
                               <p className="text-sm">{mentor.employerName || "N/A"}</p>
                             </div>
                           </>
                         ) : (
-                          <div className="space-y-2 md:col-span-2">
+                          <div className="space-y-2">
                             <Label htmlFor={`mentor-pick-${index}`}>Mentor *</Label>
                             <MentorCombobox
                               id={`mentor-pick-${index}`}
@@ -5266,6 +5430,76 @@ export function CandidateCreationDialog({
           </Collapsible>
           </div>
 
+          <div id="call-notes">
+          <Collapsible open={callNotesOpen} onOpenChange={setCallNotesOpen}>
+            <div className="flex items-center gap-2">
+              <CollapsibleTrigger asChild className="flex-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-5 w-5 text-primary" />
+                    <span className="text-lg font-medium">Call Notes</span>
+                    <SectionProgressBadge
+                      percentage={callNotesProgress.percentage}
+                      verified={callNotesProgress.verified}
+                      total={callNotesProgress.total}
+                    />
+                  </div>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${
+                      callNotesOpen ? "transform rotate-180" : ""
+                    }`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              {showVerification && (
+                <div
+                  className="flex items-center gap-2 px-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    id="verify-all-call-notes"
+                    checked={isSectionFullyVerified("call-notes")}
+                    onCheckedChange={(checked) => handleVerifyAllSection("call-notes", !!checked)}
+                    aria-label="Verify all fields in Call Notes section"
+                  />
+                  <Label
+                    htmlFor="verify-all-call-notes"
+                    className="text-sm text-muted-foreground cursor-pointer font-normal whitespace-nowrap"
+                  >
+                    Verify All
+                  </Label>
+                </div>
+              )}
+            </div>
+            <CollapsibleContent className="space-y-4 mt-4">
+              <div className="space-y-2">
+                {mode === "edit" && callNotesLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    Loading call notes…
+                  </div>
+                ) : (
+                  <Textarea
+                    id="callNotes"
+                    placeholder={CALL_NOTES_PLACEHOLDER}
+                    value={formData.callNotes}
+                    onChange={(e) => handleInputChange("callNotes", e.target.value)}
+                    rows={6}
+                    disabled={mode === "edit" && callNotesLoading}
+                    aria-label="Call Notes"
+                    className="min-h-[8rem] whitespace-pre-wrap"
+                  />
+                )}
+                <VerificationCheckbox fieldPath="callNotes" />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+          </div>
+
           <div id="final-remarks">
           <Collapsible open={finalRemarksOpen} onOpenChange={setFinalRemarksOpen}>
             <div className="flex items-center gap-2">
@@ -5313,16 +5547,14 @@ export function CandidateCreationDialog({
             </div>
             <CollapsibleContent className="space-y-4 mt-4">
               <div className="space-y-2">
-                {mode !== "create" ? (
-                  <Label htmlFor="finalRemarks">Final Remarks</Label>
-                ) : null}
                 <Textarea
                   id="finalRemarks"
                   placeholder="Enter remarks made after the call or after reviewing this profile…"
                   value={formData.finalRemarks}
                   onChange={(e) => handleInputChange("finalRemarks", e.target.value)}
-                  rows={4}
-                  aria-label={mode === "create" ? "Final Remarks" : undefined}
+                  rows={6}
+                  aria-label="Final Remarks"
+                  className="min-h-[8rem] whitespace-pre-wrap"
                 />
                 <VerificationCheckbox fieldPath="finalRemarks" />
               </div>
@@ -5383,6 +5615,33 @@ export function CandidateCreationDialog({
             />
           )}
 
+          {draftSyncEnabled ? (
+            <div className="flex flex-col gap-2 w-full sm:flex-row sm:items-center">
+              <LocalDraftSavedLine savedAt={draftSync.lastSavedAt} />
+              <div className="ml-auto flex justify-end gap-2 w-full sm:w-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCancel}
+                  disabled={isLoading || isRetryingResume}
+                  className="cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                {!pendingResumeRetry && (
+                  <Button
+                    type="submit"
+                    form="candidate-form"
+                    disabled={isLoading || isRetryingResume}
+                    className="transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:hover:scale-100 disabled:hover:shadow-none"
+                  >
+                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {getSubmitButtonText(isLoading)}
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
           <div className="flex justify-end gap-2 w-full">
             <Button
               type="button"
@@ -5405,6 +5664,7 @@ export function CandidateCreationDialog({
             </Button>
             )}
           </div>
+          )}
         </DialogFooter>
       </DialogContent>
       
@@ -5414,7 +5674,9 @@ export function CandidateCreationDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
             <AlertDialogDescription>
-              You have unsaved changes. Are you sure you want to close? All changes will be lost.
+              {draftSyncEnabled
+                ? "You have changes that are not saved to this device yet. Close to save locally, or discard to delete the draft."
+                : "You have unsaved changes. Are you sure you want to close? All changes will be lost."}
               {showVerification && verifiedFields.size > 0 && (
                 <span className="block mt-2 font-medium text-yellow-600 dark:text-yellow-400">
                   {verifiedFields.size} field(s) marked for verification will not be saved.
@@ -5426,11 +5688,19 @@ export function CandidateCreationDialog({
             <AlertDialogCancel onClick={handleCancelClose} className="cursor-pointer">
               Keep Editing
             </AlertDialogCancel>
+            {draftSyncEnabled ? (
+              <AlertDialogAction
+                onClick={handleCloseWithLocalFlush}
+                className="cursor-pointer"
+              >
+                Close
+              </AlertDialogAction>
+            ) : null}
             <AlertDialogAction 
               onClick={handleConfirmClose}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 cursor-pointer"
             >
-              Discard Changes
+              {draftSyncEnabled ? "Discard draft" : "Discard Changes"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -500,6 +500,7 @@ export function hasPrefillContent(p: Partial<CandidateFormData>): boolean {
   if (str(p.city)) return true
   if (str(p.postingTitle)) return true
   if (str(p.linkedinUrl) || str(p.githubUrl)) return true
+  if (str(p.callNotes)) return true
   return false
 }
 

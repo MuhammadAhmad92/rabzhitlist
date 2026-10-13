@@ -34,6 +34,7 @@ const EMPTY_FORM: CandidateFormData = {
   achievements: [],
   mentors: [],
   competitions: [],
+  callNotes: "",
   finalRemarks: "",
 }
 

@@ -596,7 +596,7 @@ export function ProjectsPageClient() {
             <ProjectCreationDialog
               mode="edit"
               projectData={projectToVerify}
-              showVerification={true}
+              showVerification={false} /* VERIFICATION_UI_DISABLED */
               open={verifyDialogOpen}
               onOpenChange={(open) => {
                 setVerifyDialogOpen(open)

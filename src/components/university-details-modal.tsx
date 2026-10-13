@@ -60,6 +60,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Separator } from "@/components/ui/separator"
 import { VerificationBadge } from "@/components/ui/verification-badge"
+import { VERIFICATION_UI_ENABLED } from "@/lib/config/verification-ui-enabled"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Command,
@@ -98,8 +99,8 @@ const rankingOptions = Object.entries(UNIVERSITY_RANKING_LABELS).map(([value, la
 
 const EMPTY_COUNTRIES: Country[] = []
 
-/** Field verification API not shipped — hide verify UI in this modal. */
-const UNIVERSITY_DETAILS_INLINE_VERIFY = false
+/** Inline field verification UI (gated by VERIFICATION_UI_ENABLED). */
+const UNIVERSITY_DETAILS_INLINE_VERIFY = VERIFICATION_UI_ENABLED
 
 const UNIVERSITY_SCALAR_FIELD_LABELS: Record<string, string> = {
   name: "University name",
@@ -196,7 +197,7 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
     // Save
     setIsSaving(true)
     try {
-      await onSave(fieldName, editValue, willVerify)
+      await onSave(fieldName, editValue, VERIFICATION_UI_ENABLED && willVerify)
       setIsEditing(false)
       setError(null)
     } catch (err) {
@@ -771,7 +772,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
     
     setIsSaving(true)
     try {
-      await onSave(fieldName, editValue, willVerify)
+      await onSave(fieldName, editValue, VERIFICATION_UI_ENABLED && willVerify)
       setIsEditing(false)
     } catch (err) {
       setEditValue(value)
@@ -806,7 +807,9 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
         <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
         {!isEditing && (
           <div className="flex items-center gap-1 shrink-0">
+            {VERIFICATION_UI_ENABLED && (
             <VerificationIndicator fieldName={fieldName} />
+            )}
             <Button
               size="sm"
               variant="ghost"
@@ -841,7 +844,8 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
                 </Label>
               </div>
               
-              {/* Mark as verified checkbox */}
+              {/* VERIFICATION_UI_DISABLED — Mark as verified checkbox */}
+              {VERIFICATION_UI_ENABLED ? (
               <div className="flex items-center gap-2 pl-1">
                 <Checkbox
                   id={`verify-${fieldName}`}
@@ -860,6 +864,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
                   {willVerify ? '✓ Verified' : 'Mark as verified'}
                 </Label>
               </div>
+              ) : null}
             </div>
             
             {/* Action Buttons */}
@@ -869,7 +874,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
                 onClick={handleSave}
                 disabled={isSaving}
                 className="h-8 w-8 p-0"
-                title={willVerify ? "Save & Verify" : "Save"}
+                title={VERIFICATION_UI_ENABLED && willVerify ? "Save & Verify" : "Save"}
               >
                 {isSaving ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -971,7 +976,7 @@ const InlineEditableSwitch: React.FC<InlineEditableSwitchProps> = ({
     
     setIsSaving(true)
     try {
-      await onSave(fieldName, editValue, willVerify)
+      await onSave(fieldName, editValue, VERIFICATION_UI_ENABLED && willVerify)
       setIsEditing(false)
     } catch (err) {
       setEditValue(value)
