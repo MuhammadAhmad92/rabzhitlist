@@ -2,6 +2,8 @@
 
 **Status:** Implemented. Migration `20261002063900_AddProjectModules` adds `project_modules`, `project_module_tech_stacks`, and `candidate_work_experience_modules`. Section 4 (`GET /api/modules` and `moduleCount` on each `GET /api/projects` list item) is implemented.
 
+**Frontend (Modules catalog create/edit/delete):** [MODULES_PAGE_CREATE_EDIT_UI.md](./MODULES_PAGE_CREATE_EDIT_UI.md) — uses the project-scoped routes in §3, not new catalog APIs.
+
 **Roles:** Super Admin `0`, Admin `1`, Recruiter `2`. All three may call every route in this contract. These routes do not return **403** for Recruiter.
 
 The candidate create and edit screen is still limited to Super Admin and Admin. That screen is where a candidate link is added or removed. Recruiter edits and deletes the shared module from the project detail dialog. The API still accepts Recruiter link writes.
@@ -115,7 +117,7 @@ Unauthenticated calls stay **401**.
 
 ## 4. Modules catalog list
 
-The modules page at `/projects/modules` is browse and filter only. This section does not add create, update, or delete routes. Candidate-name filtering is not in this version.
+The modules page at `/projects/modules` lists and filters via `GET /api/modules`. This section does not add **catalog-scoped** create, update, or delete routes (e.g. no `POST /api/modules`). Create/update/delete on the catalog UI use §3 project routes — see [MODULES_PAGE_CREATE_EDIT_UI.md](./MODULES_PAGE_CREATE_EDIT_UI.md). Candidate-name filtering is not in this version.
 
 All three roles may call `GET /api/modules`. It does not return **403** for Recruiter.
 
