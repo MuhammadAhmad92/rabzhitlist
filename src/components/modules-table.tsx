@@ -1,8 +1,25 @@
 "use client"
 
-import { ChevronLeftIcon, ChevronRightIcon, ChevronsLeftIcon, ChevronsRightIcon, EyeIcon } from "lucide-react"
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronsLeftIcon,
+  ChevronsRightIcon,
+  Edit,
+  EyeIcon,
+  MoreHorizontal,
+  Trash2,
+} from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Select,
   SelectContent,
@@ -36,6 +53,8 @@ interface ModulesTableProps {
   onPageChange: (page: number) => void
   onPageSizeChange: (pageSize: number) => void
   onOpen: (module: ProjectModuleListItem) => void
+  onEdit: (module: ProjectModuleListItem) => void
+  onDelete: (module: ProjectModuleListItem) => void
 }
 
 function TechStackBadges({ stacks }: { stacks: string[] }) {
@@ -72,6 +91,8 @@ export function ModulesTable({
   onPageChange,
   onPageSizeChange,
   onOpen,
+  onEdit,
+  onDelete,
 }: ModulesTableProps) {
   if (isLoading) {
     return (
@@ -91,7 +112,7 @@ export function ModulesTable({
               <TableHead className="w-[220px] min-w-[160px]">Main project</TableHead>
               <TableHead className="w-[220px]">Tech Stacks</TableHead>
               <TableHead className="w-[110px]">Candidates</TableHead>
-              <TableHead className="w-[70px]">Actions</TableHead>
+              <TableHead className="w-[100px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -122,20 +143,56 @@ export function ModulesTable({
                     <TechStackBadges stacks={module.techStacks} />
                   </TableCell>
                   <TableCell className="tabular-nums">{module.candidateCount}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
+                  <TableCell onClick={(event) => event.stopPropagation()}>
+                    <div className="flex items-center gap-0.5">
                       <Button
                         type="button"
                         variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onOpen(module)
-                        }}
+                        size="icon"
+                        className="h-8 w-8 shrink-0 cursor-pointer"
+                        onClick={() => onOpen(module)}
                       >
                         <EyeIcon className="h-4 w-4" />
+                        <span className="sr-only">View project</span>
                       </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 cursor-pointer"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Open menu</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              onEdit(module)
+                            }}
+                          >
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="cursor-pointer text-red-600 focus:text-red-600"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              onDelete(module)
+                            }}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </TableCell>
                 </TableRow>
