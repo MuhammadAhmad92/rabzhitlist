@@ -1,4 +1,5 @@
 import type { CandidateFormData } from "@/components/candidate-creation-dialog"
+import { reviveCandidateFormFromLocalStorage } from "@/lib/candidate/revive-candidate-form-from-local-storage"
 
 const KEY_PREFIX = "candidate-create-draft-local:"
 
@@ -19,7 +20,9 @@ export function readCandidateDraftLocal(userKey: string): CandidateDraftLocalPay
     const parsed = JSON.parse(raw) as CandidateDraftLocalPayload
     if (!parsed?.formSnapshot || typeof parsed.formSnapshot !== "object") return null
     return {
-      formSnapshot: parsed.formSnapshot,
+      formSnapshot: reviveCandidateFormFromLocalStorage(
+        parsed.formSnapshot as CandidateFormData,
+      ),
       savedAt: typeof parsed.savedAt === "string" ? parsed.savedAt : new Date().toISOString(),
     }
   } catch {

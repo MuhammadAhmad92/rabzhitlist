@@ -85,6 +85,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Candidate, Competition, Achievement, AchievementType } from "@/lib/types/candidate"
+import { reviveCandidateFormFromLocalStorage } from "@/lib/candidate/revive-candidate-form-from-local-storage"
 import { parseLocalDateFromApi } from "@/lib/utils/work-experience-dates"
 import { salaryRangeOrderError, wholeSalaryFieldError } from "@/lib/utils/qg-value"
 import {
@@ -2973,7 +2974,7 @@ export function CandidateCreationDialog({
           projectErrors[projectIndex] = projErrors
         }
       })
-
+      
       const moduleErrors: {
         [moduleIndex: number]: Partial<Record<"projectId" | "name" | "moduleId", string>>
       } = {}
@@ -3115,7 +3116,7 @@ export function CandidateCreationDialog({
     if (e.target !== e.currentTarget) {
       return
     }
-
+    
     if (!validateForm()) {
       return
     }
@@ -3298,8 +3299,9 @@ export function CandidateCreationDialog({
       )
       const hadPrefill = !!(createPrefill && hasPrefillContent(createPrefill))
       if (hadDraftBootstrap) {
-        setFormData(draftFormBootstrap!)
-        initialFormDataRef.current = draftFormBootstrap!
+        const revivedDraft = reviveCandidateFormFromLocalStorage(draftFormBootstrap!)
+        setFormData(revivedDraft)
+        initialFormDataRef.current = revivedDraft
         appliedDraftBootstrapSessionRef.current = true
         onDraftFormBootstrapConsumedRef.current?.()
       } else if (hadPrefill) {
@@ -3380,7 +3382,7 @@ export function CandidateCreationDialog({
           onCheckedChange={() => toggleFieldVerification(fieldPath)}
           className="cursor-pointer"
         />
-        <Label
+        <Label 
           htmlFor={`verify-${fieldPath}`}
           className={`text-xs cursor-pointer ${isVerified ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'}`}
         >
@@ -3426,28 +3428,28 @@ export function CandidateCreationDialog({
         </DialogHeader>
 
         {/* Sticky Section Navigation Tabs (navigation only; verification badges disabled) */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border shadow-sm">
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border shadow-sm">
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="h-12 w-full justify-start rounded-none border-0 bg-transparent p-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <TabsList className="h-12 w-full justify-start rounded-none border-0 bg-transparent p-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               {sections.map((section) => (
-                <TabsTrigger
-                  key={section.id}
-                  value={section.sectionId}
-                  className={cn(
-                    "px-4 py-2 text-sm font-medium rounded-t transition-colors whitespace-nowrap h-12 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none",
-                    "data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:hover:text-foreground",
-                    "border-b-2 border-transparent",
+                    <TabsTrigger
+                      key={section.id}
+                      value={section.sectionId}
+                      className={cn(
+                        "px-4 py-2 text-sm font-medium rounded-t transition-colors whitespace-nowrap h-12 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none",
+                        "data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:hover:text-foreground",
+                        "border-b-2 border-transparent",
                     "cursor-pointer flex items-center gap-2",
                   )}
                   aria-label={`Jump to ${section.label} section`}
                 >
                   <span className="hidden xl:inline">{section.label}</span>
                   <span className="xl:hidden">{section.shortLabel}</span>
-                </TabsTrigger>
+                    </TabsTrigger>
               ))}
-            </TabsList>
-          </Tabs>
-        </div>
+              </TabsList>
+            </Tabs>
+          </div>
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 py-6">
           {/* Nested create dialogs (portaled) stay React children of this form — see .cursor/rules/candidate-nested-dialog-forms.mdc */}
@@ -3493,15 +3495,15 @@ export function CandidateCreationDialog({
                   variant="outline"
                   className="w-full justify-between cursor-pointer"
                 >
-                  <div className="flex items-center gap-2">
-                    <User className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <div className="flex items-center gap-2">
+                  <User className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                     <span className="text-lg font-medium">Basic Information</span>
-                    <SectionProgressBadge
-                      percentage={basicInfoProgress.percentage}
-                      verified={basicInfoProgress.verified}
-                      total={basicInfoProgress.total}
-                    />
-                  </div>
+                  <SectionProgressBadge 
+                    percentage={basicInfoProgress.percentage}
+                    verified={basicInfoProgress.verified}
+                    total={basicInfoProgress.total}
+                  />
+                </div>
                   <ChevronDown
                     className={`h-4 w-4 transition-transform duration-200 ${
                       basicInfoOpen ? "transform rotate-180" : ""
@@ -3509,25 +3511,25 @@ export function CandidateCreationDialog({
                   />
                 </Button>
               </CollapsibleTrigger>
-              {showVerification && (
-                <div
+                {showVerification && (
+                  <div 
                   className="flex items-center gap-2 px-2"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Checkbox
-                    id="verify-all-basic-info"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Checkbox
+                      id="verify-all-basic-info"
                     checked={isSectionFullyVerified("basic-info")}
                     onCheckedChange={(checked) => handleVerifyAllSection("basic-info", !!checked)}
-                    aria-label="Verify all fields in Basic Information section"
-                  />
-                  <Label
-                    htmlFor="verify-all-basic-info"
+                      aria-label="Verify all fields in Basic Information section"
+                    />
+                    <Label 
+                      htmlFor="verify-all-basic-info"
                     className="text-sm text-muted-foreground cursor-pointer font-normal whitespace-nowrap"
-                  >
-                    Verify All
-                  </Label>
-                </div>
-              )}
+                    >
+                      Verify All
+                    </Label>
+                  </div>
+                )}
             </div>
             <CollapsibleContent className="space-y-4 mt-4">
           <Card>
@@ -4466,26 +4468,26 @@ export function CandidateCreationDialog({
               )}
             </div>
             <CollapsibleContent className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <MultiSelect
-                  items={techStackOptions}
-                  selected={formData.techStacks}
-                  onChange={(values) => {
-                    setFormData(prev => ({ ...prev, techStacks: values }))
-                    markFieldModified('techStacks')
-                  }}
-                  placeholder="Select technologies..."
-                  searchPlaceholder="Search technologies..."
-                  maxDisplay={4}
-                  disabled={techStacksLoading}
-                  creatable={!!onCreateTechStack}
-                  createLabel="Add Technology"
-                  onCreateNew={onCreateTechStack ? (name) => onCreateTechStack(name) : undefined}
+                  <div className="space-y-2">
+                    <MultiSelect
+                      items={techStackOptions}
+                      selected={formData.techStacks}
+                      onChange={(values) => {
+                        setFormData(prev => ({ ...prev, techStacks: values }))
+                        markFieldModified('techStacks')
+                      }}
+                      placeholder="Select technologies..."
+                      searchPlaceholder="Search technologies..."
+                      maxDisplay={4}
+                      disabled={techStacksLoading}
+                      creatable={!!onCreateTechStack}
+                      createLabel="Add Technology"
+                      onCreateNew={onCreateTechStack ? (name) => onCreateTechStack(name) : undefined}
                   pinSelectedToTop
                   remainingGroupHeading="All technologies"
-                />
-                <VerificationCheckbox fieldPath="techStacks" />
-              </div>
+                    />
+                    <VerificationCheckbox fieldPath="techStacks" />
+                  </div>
             </CollapsibleContent>
           </Collapsible>
           </div>
@@ -5619,25 +5621,25 @@ export function CandidateCreationDialog({
             <div className="flex flex-col gap-2 w-full sm:flex-row sm:items-center">
               <LocalDraftSavedLine savedAt={draftSync.lastSavedAt} />
               <div className="ml-auto flex justify-end gap-2 w-full sm:w-auto">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleCancel}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCancel}
                   disabled={isLoading || isRetryingResume}
-                  className="cursor-pointer"
-                >
-                  Cancel
-                </Button>
+              className="cursor-pointer"
+            >
+              Cancel
+            </Button>
                 {!pendingResumeRetry && (
-                  <Button
-                    type="submit"
-                    form="candidate-form"
+            <Button 
+              type="submit"
+              form="candidate-form"
                     disabled={isLoading || isRetryingResume}
-                    className="transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:hover:scale-100 disabled:hover:shadow-none"
-                  >
-                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {getSubmitButtonText(isLoading)}
-                  </Button>
+              className="transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:hover:scale-100 disabled:hover:shadow-none"
+            >
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {getSubmitButtonText(isLoading)}
+            </Button>
                 )}
               </div>
             </div>
