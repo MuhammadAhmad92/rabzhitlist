@@ -53,7 +53,7 @@ Save **Create Candidate** progress on **this device** while typing so users can 
 
 | Topic | Decision |
 |--------|----------|
-| Local storage | **Full** form JSON — no sanitize-on-save |
+| Local storage | **Full** form JSON — no sanitize-on-save; **`Date` fields revived on read** (`reviveCandidateFormFromLocalStorage`) after `JSON.parse` |
 | Create | Full **`validateForm`** + create DTO rules |
 
 ---
